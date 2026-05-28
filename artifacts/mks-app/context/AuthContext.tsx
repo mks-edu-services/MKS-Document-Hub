@@ -54,8 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: firebaseUser.email ?? '',
               displayName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
               role: 'viewer' as UserRole,
-              photoURL: firebaseUser.photoURL ?? undefined,
               createdAt: new Date().toISOString(),
+              ...(firebaseUser.photoURL ? { photoURL: firebaseUser.photoURL } : {}),
             };
             await createUser(newUser);
             setUser(newUser);

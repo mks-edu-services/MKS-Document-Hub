@@ -20,13 +20,19 @@ function db() {
   return d;
 }
 
+function stripUndefined<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
+}
+
 // ── Users ──────────────────────────────────────────────────────────────────
 
 export async function createUser(user: Omit<AppUser, 'createdAt'>): Promise<void> {
-  await setDoc(doc(db(), 'users', user.uid), {
+  await setDoc(doc(db(), 'users', user.uid), stripUndefined({
     ...user,
     createdAt: new Date().toISOString(),
-  });
+  }));
 }
 
 export async function getUser(uid: string): Promise<AppUser | null> {
@@ -47,7 +53,7 @@ export async function updateUserRole(uid: string, role: UserRole): Promise<void>
 
 export async function createTemplate(template: Omit<Template, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString();
-  const ref = await addDoc(collection(db(), 'templates'), { ...template, createdAt: now, updatedAt: now });
+  const ref = await addDoc(collection(db(), 'templates'), stripUndefined({ ...template, createdAt: now, updatedAt: now }));
   return ref.id;
 }
 
@@ -65,7 +71,7 @@ export async function getTemplate(id: string): Promise<Template | null> {
 }
 
 export async function updateTemplate(id: string, data: Partial<Template>): Promise<void> {
-  await updateDoc(doc(db(), 'templates', id), { ...data, updatedAt: new Date().toISOString() });
+  await updateDoc(doc(db(), 'templates', id), stripUndefined({ ...data, updatedAt: new Date().toISOString() }));
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
@@ -76,7 +82,7 @@ export async function deleteTemplate(id: string): Promise<void> {
 
 export async function createDocument(doc_: Omit<Document, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
   const now = new Date().toISOString();
-  const ref = await addDoc(collection(db(), 'documents'), { ...doc_, createdAt: now, updatedAt: now });
+  const ref = await addDoc(collection(db(), 'documents'), stripUndefined({ ...doc_, createdAt: now, updatedAt: now }));
   return ref.id;
 }
 
@@ -91,7 +97,7 @@ export async function getDocument(id: string): Promise<Document | null> {
 }
 
 export async function updateDocument(id: string, data: Partial<Document>): Promise<void> {
-  await updateDoc(doc(db(), 'documents', id), { ...data, updatedAt: new Date().toISOString() });
+  await updateDoc(doc(db(), 'documents', id), stripUndefined({ ...data, updatedAt: new Date().toISOString() }));
 }
 
 export async function deleteDocument(id: string): Promise<void> {
