@@ -10,7 +10,6 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -42,19 +41,45 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="document/new"
-        options={{ headerShown: true, title: "New Document", presentation: "modal" }}
+        options={{
+          headerShown: true,
+          title: "New Document",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#003366" },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: { fontWeight: "700" },
+        }}
       />
       <Stack.Screen
         name="document/[id]"
-        options={{ headerShown: true, title: "Document Details" }}
+        options={{
+          headerShown: true,
+          title: "Document Details",
+          headerStyle: { backgroundColor: "#003366" },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: { fontWeight: "700" },
+        }}
       />
       <Stack.Screen
         name="template/new"
-        options={{ headerShown: true, title: "New Template", presentation: "modal" }}
+        options={{
+          headerShown: true,
+          title: "New Template",
+          presentation: "modal",
+          headerStyle: { backgroundColor: "#003366" },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: { fontWeight: "700" },
+        }}
       />
       <Stack.Screen
         name="template/[id]"
-        options={{ headerShown: true, title: "Edit Template" }}
+        options={{
+          headerShown: true,
+          title: "Edit Template",
+          headerStyle: { backgroundColor: "#003366" },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: { fontWeight: "700" },
+        }}
       />
     </Stack>
   );
@@ -82,9 +107,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
+              <RootLayoutNav />
             </GestureHandlerRootView>
           </AuthProvider>
         </QueryClientProvider>

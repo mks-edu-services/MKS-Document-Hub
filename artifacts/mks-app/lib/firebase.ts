@@ -3,8 +3,12 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
+const resolvedApiKey =
+  process.env.EXPO_PUBLIC_FIREBASE_API_KEY ||
+  process.env.GOOGLE_API_KEY;
+
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  apiKey: resolvedApiKey,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
@@ -13,7 +17,7 @@ const firebaseConfig = {
 };
 
 export const isFirebaseConfigured = !!(
-  process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
+  resolvedApiKey &&
   process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID
 );
 
