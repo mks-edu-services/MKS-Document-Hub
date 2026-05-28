@@ -17,7 +17,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { createDocument, getTemplates } from "@/lib/firestore";
+import { createDocument, getTemplates, updateDocument } from "@/lib/firestore";
+import { uploadDocumentToDrive } from "@/lib/driveUpload";
 import { Document, Template } from "@/types";
 
 const ACADEMIC_YEARS = ["2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
@@ -142,8 +143,15 @@ export default function NewDocumentScreen() {
         status,
         createdBy: user?.uid ?? "",
       };
-      await createDocument(docData);
+      const docId = await createDocument(docData);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      uploadDocumentToDrive({ ...docData, documentId: docId })
+        .then((result) =>
+          updateDocument(docId, { driveFileId: result.fileId, driveFileUrl: result.fileUrl })
+        )
+        .catch(() => {});
+
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to save document.");

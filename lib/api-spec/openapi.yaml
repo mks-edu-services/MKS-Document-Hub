@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: drive
+    description: Google Drive operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /drive/upload:
+    post:
+      operationId: uploadDocumentToDrive
+      tags: [drive]
+      summary: Upload document to Google Drive
+      description: Creates a Google Doc in Drive with the document data and returns a shareable URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriveUploadRequest"
+      responses:
+        "200":
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveUploadResponse"
+        "503":
+          description: Google Drive not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +69,58 @@ components:
       required:
         - status
 
+    DriveUploadRequest:
+      type: object
+      properties:
+        documentId:
+          type: string
+          description: Firestore document ID
+        title:
+          type: string
+        studentName:
+          type: string
+        school:
+          type: string
+        serviceType:
+          type: string
+        academicYear:
+          type: string
+        agent:
+          type: string
+        date:
+          type: string
+        templateName:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+        notes:
+          type: string
+      required:
+        - documentId
+        - title
+        - studentName
+        - serviceType
+
+    DriveUploadResponse:
+      type: object
+      properties:
+        fileId:
+          type: string
+        fileUrl:
+          type: string
+        fileName:
+          type: string
+      required:
+        - fileId
+        - fileUrl
+        - fileName
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

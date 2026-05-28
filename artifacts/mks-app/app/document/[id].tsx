@@ -1,6 +1,7 @@
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
+import * as Linking from "expo-linking";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { deleteDocument, getDocument, updateDocument } from "@/lib/firestore";
+import { uploadDocumentToDrive } from "@/lib/driveUpload";
 import { Document, DocumentStatus } from "@/types";
 
 const statusConfig: Record<DocumentStatus, { label: string; color: string; bg: string }> = {
@@ -55,6 +57,7 @@ export default function DocumentDetailScreen() {
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [uploadingToDrive, setUploadingToDrive] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -102,6 +105,47 @@ export default function DocumentDetailScreen() {
     );
   }
 
+  async function handleUploadToDrive() {
+    if (!document) return;
+    setUploadingToDrive(true);
+    try {
+      const result = await uploadDocumentToDrive({
+        documentId: document.id,
+        title: document.title,
+        studentName: document.studentName,
+        school: document.school,
+        serviceType: document.serviceType,
+        academicYear: document.academicYear,
+        agent: document.agent,
+        date: document.date,
+        templateName: document.templateName,
+        fields: document.fields,
+        notes: document.notes,
+      });
+      await updateDocument(document.id, {
+        driveFileId: result.fileId,
+        driveFileUrl: result.fileUrl,
+      });
+      setDocument((d) => d ? { ...d, driveFileId: result.fileId, driveFileUrl: result.fileUrl } : d);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert(
+        "Drive Upload Failed",
+        e?.message?.includes("not configured")
+          ? "Google Drive is not yet connected. Ask your admin to link the Google account."
+          : e?.message ?? "Failed to upload to Google Drive."
+      );
+    } finally {
+      setUploadingToDrive(false);
+    }
+  }
+
+  function openDriveFile() {
+    if (document?.driveFileUrl) {
+      Linking.openURL(document.driveFileUrl);
+    }
+  }
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -141,6 +185,43 @@ export default function DocumentDetailScreen() {
         <Text style={styles.docStudent}>{document.studentName}</Text>
         <Text style={styles.docDate}>Created {createdDate}</Text>
       </View>
+
+      {document.driveFileUrl ? (
+        <TouchableOpacity
+          onPress={openDriveFile}
+          style={[styles.driveCard, { backgroundColor: "#e8f5e9", borderColor: "#4caf50" }]}
+          activeOpacity={0.8}
+        >
+          <View style={styles.driveRow}>
+            <MaterialIcons name="insert-drive-file" size={22} color="#2e7d32" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.driveLabel, { color: "#2e7d32" }]}>Linked Google Doc</Text>
+              <Text style={[styles.driveUrl, { color: "#1b5e20" }]} numberOfLines={1}>
+                {document.driveFileUrl}
+              </Text>
+            </View>
+            <Feather name="external-link" size={16} color="#2e7d32" />
+          </View>
+        </TouchableOpacity>
+      ) : (
+        <RoleGate minRole="editor">
+          <TouchableOpacity
+            onPress={handleUploadToDrive}
+            disabled={uploadingToDrive}
+            style={[styles.driveUploadBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            activeOpacity={0.8}
+          >
+            {uploadingToDrive ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <MaterialIcons name="cloud-upload" size={18} color={colors.primary} />
+            )}
+            <Text style={[styles.driveUploadText, { color: colors.primary }]}>
+              {uploadingToDrive ? "Uploading to Drive…" : "Upload to Google Drive"}
+            </Text>
+          </TouchableOpacity>
+        </RoleGate>
+      )}
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.primary }]}>Document Details</Text>
@@ -242,6 +323,24 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
   fieldValue: { fontSize: 15, fontWeight: "500" },
   notes: { fontSize: 14, lineHeight: 22 },
+  driveCard: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 14,
+  },
+  driveRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  driveLabel: { fontSize: 13, fontWeight: "700" },
+  driveUrl: { fontSize: 11, marginTop: 2 },
+  driveUploadBtn: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  driveUploadText: { fontSize: 14, fontWeight: "700" },
   actionsCard: { gap: 12 },
   actionsTitle: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   statusBtns: { flexDirection: "row", gap: 8 },

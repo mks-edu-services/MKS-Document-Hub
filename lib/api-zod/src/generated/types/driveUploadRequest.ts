@@ -5,11 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export type DriveUploadRequestFields = {[key: string]: string};
+import type { DriveUploadRequestFields } from './driveUploadRequestFields';
 
 export interface DriveUploadRequest {
   /** Firestore document ID */
@@ -25,14 +21,3 @@ export interface DriveUploadRequest {
   fields?: DriveUploadRequestFields;
   notes?: string;
 }
-
-export interface DriveUploadResponse {
-  fileId: string;
-  fileUrl: string;
-  fileName: string;
-}
-
-export interface ErrorResponse {
-  error: string;
-}
-
