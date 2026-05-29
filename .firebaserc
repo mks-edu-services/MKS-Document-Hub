@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "mks-certificate-app-cbf64"
+  },
+  "targets": {
+    "mks-certificate-app-cbf64": {
+      "hosting": {
+        "mksedudoc": [
+          "mksedudoc"
+        ]
+      }
+    }
+  }
+}
