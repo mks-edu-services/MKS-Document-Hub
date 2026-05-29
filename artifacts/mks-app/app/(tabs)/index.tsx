@@ -1,12 +1,10 @@
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +18,7 @@ import { RoleGate } from "@/components/RoleGate";
 import { SetupBanner } from "@/components/SetupBanner";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { getDocuments, getTemplates } from "@/lib/firestore";
+import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
 import { Document, Template } from "@/types";
 
 interface StatCard {
@@ -36,29 +34,32 @@ const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translatio
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, signOut, isFirebaseReady } = useAuth();
+  const { user, isFirebaseReady } = useAuth();
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
-  const loadData = useCallback(async () => {
+  useEffect(() => {
     if (!isFirebaseReady) { setLoading(false); return; }
-    try {
-      const [docs, tmps] = await Promise.all([getDocuments(), getTemplates()]);
+    let loaded = { docs: false, tmps: false };
+    const check = () => { if (loaded.docs && loaded.tmps) setLoading(false); };
+
+    const unsubDocs = subscribeToDocuments((docs) => {
       setDocuments(docs);
+      loaded.docs = true;
+      check();
+    });
+    const unsubTmps = subscribeToTemplates((tmps) => {
       setTemplates(tmps);
-    } catch (_) {}
-    setLoading(false);
-    setRefreshing(false);
+      loaded.tmps = true;
+      check();
+    });
+
+    return () => { unsubDocs(); unsubTmps(); };
   }, [isFirebaseReady]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const onRefresh = () => { setRefreshing(true); loadData(); };
 
   const recentDocs = documents.slice(0, 5);
   const totalDocs = documents.length;
@@ -83,7 +84,6 @@ export default function DashboardScreen() {
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       showsVerticalScrollIndicator={false}
     >
       <LinearGradient
@@ -94,8 +94,12 @@ export default function DashboardScreen() {
       >
         <View style={styles.headerTop}>
           <MKSLogo size="small" light />
-          <TouchableOpacity onPress={signOut} style={styles.signOutBtn}>
-            <Feather name="log-out" size={18} color="rgba(255,255,255,0.7)" />
+          <TouchableOpacity onPress={() => router.push("/(tabs)/profile")} style={styles.avatarBtn}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitial}>
+                {user?.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
         <Text style={styles.greeting}>{greeting()},</Text>
@@ -173,7 +177,11 @@ export default function DashboardScreen() {
           </View>
         ) : (
           recentDocs.map((doc) => (
-            <DocumentCard key={doc.id} document={doc} onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })} />
+            <DocumentCard
+              key={doc.id}
+              document={doc}
+              onPress={() => router.push({ pathname: "/document/[id]", params: { id: doc.id } })}
+            />
           ))
         )}
       </View>
@@ -194,7 +202,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  signOutBtn: { padding: 8 },
+  avatarBtn: { padding: 4 },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  avatarInitial: { color: "#fff", fontSize: 15, fontWeight: "700" },
   greeting: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   userName: { color: "#ffffff", fontSize: 24, fontWeight: "800" },
   roleBadge: {
@@ -257,4 +276,3 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 14 },
 });
-

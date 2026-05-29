@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppUser, UserRole } from '@/types';
-import { createUser, getUser } from '@/lib/firestore';
+import { createUser, getUser, updateUserProfile } from '@/lib/firestore';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 
 interface AuthContextValue {
@@ -10,6 +10,7 @@ interface AuthContextValue {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateProfile: (data: { displayName?: string; agentName?: string }) => Promise<void>;
   isFirebaseReady: boolean;
 }
 
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextValue>({
   signUp: async () => {},
   signOut: async () => {},
   refreshUser: async () => {},
+  updateProfile: async () => {},
   isFirebaseReady: false,
 });
 
@@ -99,6 +101,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (fresh) setUser(fresh);
   }, [user]);
 
+  const updateProfile = useCallback(async (data: { displayName?: string; agentName?: string }) => {
+    if (!user) return;
+    await updateUserProfile(user.uid, data);
+    setUser((u) => u ? { ...u, ...data } : u);
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -107,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUp,
       signOut,
       refreshUser,
+      updateProfile,
       isFirebaseReady: isFirebaseConfigured,
     }}>
       {children}

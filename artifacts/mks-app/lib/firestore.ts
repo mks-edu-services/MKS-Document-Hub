@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   setDoc,
@@ -47,6 +48,10 @@ export async function getAllUsers(): Promise<AppUser[]> {
 
 export async function updateUserRole(uid: string, role: UserRole): Promise<void> {
   await updateDoc(doc(db(), 'users', uid), { role });
+}
+
+export async function updateUserProfile(uid: string, data: Partial<Pick<AppUser, 'displayName' | 'agentName'>>): Promise<void> {
+  await updateDoc(doc(db(), 'users', uid), stripUndefined(data));
 }
 
 // ── Templates ──────────────────────────────────────────────────────────────
@@ -102,4 +107,33 @@ export async function updateDocument(id: string, data: Partial<Document>): Promi
 
 export async function deleteDocument(id: string): Promise<void> {
   await deleteDoc(doc(db(), 'documents', id));
+}
+
+// ── Real-time subscriptions ─────────────────────────────────────────────────
+
+export function subscribeToDocuments(
+  callback: (docs: Document[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const q = query(collection(db(), 'documents'), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Document))),
+    (err) => onError?.(err)
+  );
+}
+
+export function subscribeToTemplates(
+  callback: (templates: Template[]) => void,
+  activeOnly = true,
+  onError?: (err: Error) => void
+): () => void {
+  const q = activeOnly
+    ? query(collection(db(), 'templates'), where('active', '==', true), orderBy('createdAt', 'desc'))
+    : query(collection(db(), 'templates'), orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Template))),
+    (err) => onError?.(err)
+  );
 }

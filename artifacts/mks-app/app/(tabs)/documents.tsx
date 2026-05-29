@@ -1,10 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Platform,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,8 +17,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { RoleGate } from "@/components/RoleGate";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { getDocuments } from "@/lib/firestore";
-import { Document, DocumentStatus } from "@/types";
+import { subscribeToDocuments } from "@/lib/firestore";
+import { Document } from "@/types";
 
 const SERVICE_TYPES = ["All", "Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const STATUS_FILTERS: { label: string; value: string }[] = [
@@ -37,24 +36,18 @@ export default function DocumentsScreen() {
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [serviceFilter, setServiceFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const loadDocs = useCallback(async () => {
+  useEffect(() => {
     if (!isFirebaseReady) { setLoading(false); return; }
-    try {
-      const docs = await getDocuments();
-      setDocuments(docs);
-    } catch (_) {}
-    setLoading(false);
-    setRefreshing(false);
+    const unsub = subscribeToDocuments(
+      (docs) => { setDocuments(docs); setLoading(false); },
+      () => setLoading(false)
+    );
+    return unsub;
   }, [isFirebaseReady]);
-
-  useEffect(() => { loadDocs(); }, [loadDocs]);
-
-  const onRefresh = () => { setRefreshing(true); loadDocs(); };
 
   const filtered = documents.filter((d) => {
     const q = search.toLowerCase();
@@ -62,8 +55,8 @@ export default function DocumentsScreen() {
       !q ||
       d.title.toLowerCase().includes(q) ||
       d.studentName.toLowerCase().includes(q) ||
-      d.school.toLowerCase().includes(q) ||
-      d.agent.toLowerCase().includes(q);
+      d.school?.toLowerCase().includes(q) ||
+      d.agent?.toLowerCase().includes(q);
     const matchService = serviceFilter === "All" || d.serviceType === serviceFilter;
     const matchStatus = statusFilter === "all" || d.status === statusFilter;
     return matchSearch && matchService && matchStatus;
@@ -157,7 +150,6 @@ export default function DocumentsScreen() {
           styles.listContent,
           { paddingBottom: insets.bottom + 100 },
         ]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={
           <EmptyState
             icon="file-text"
