@@ -3,8 +3,8 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
+import { useFonts as useExpoFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -13,8 +13,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { GlobalChrome } from "@/components/GlobalChrome";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { Feather, MaterialIcons } from "@/components/AppIcons";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { LanguageProvider } from "@/context/LanguageContext";
+import { resolveApiBaseUrl } from "@/lib/apiBase";
+import { setBaseUrl } from "@workspace/api-client-react";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,6 +27,10 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    setBaseUrl(resolveApiBaseUrl());
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -81,16 +90,28 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: "700" },
         }}
       />
+      <Stack.Screen
+        name="user/[uid]"
+        options={{
+          headerShown: true,
+          title: "User Account",
+          headerStyle: { backgroundColor: "#003366" },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: { fontWeight: "700" },
+        }}
+      />
     </Stack>
   );
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
+  const [fontsLoaded, fontError] = useExpoFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    ...Feather.font,
+    ...MaterialIcons.font,
   });
 
   useEffect(() => {
@@ -105,11 +126,14 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <RootLayoutNav />
-            </GestureHandlerRootView>
-          </AuthProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <GlobalChrome />
+                <RootLayoutNav />
+              </GestureHandlerRootView>
+            </AuthProvider>
+          </LanguageProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

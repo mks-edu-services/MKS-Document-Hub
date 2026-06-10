@@ -1,15 +1,17 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather } from "@/components/AppIcons";
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useLanguage } from '@/context/LanguageContext';
 
 export function SetupBanner() {
   const colors = useColors();
+  const { t } = useLanguage();
   return (
     <View style={[styles.banner, { backgroundColor: colors.warningLight, borderColor: colors.warning }]}>
       <Feather name="alert-triangle" size={16} color={colors.warning} />
       <Text style={[styles.text, { color: colors.warning }]}>
-        Firebase not configured. Add EXPO_PUBLIC_FIREBASE_* environment variables to enable full functionality.
+        {t("configureFirebase")}
       </Text>
     </View>
   );

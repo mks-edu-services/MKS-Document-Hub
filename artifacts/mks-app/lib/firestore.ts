@@ -33,6 +33,8 @@ export async function createUser(user: Omit<AppUser, 'createdAt'>): Promise<void
   await setDoc(doc(db(), 'users', user.uid), stripUndefined({
     ...user,
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    accessStatus: user.accessStatus ?? 'allowed',
   }));
 }
 
@@ -47,11 +49,18 @@ export async function getAllUsers(): Promise<AppUser[]> {
 }
 
 export async function updateUserRole(uid: string, role: UserRole): Promise<void> {
-  await updateDoc(doc(db(), 'users', uid), { role });
+  await updateDoc(doc(db(), 'users', uid), { role, updatedAt: new Date().toISOString() });
 }
 
-export async function updateUserProfile(uid: string, data: Partial<Pick<AppUser, 'displayName' | 'agentName'>>): Promise<void> {
-  await updateDoc(doc(db(), 'users', uid), stripUndefined(data));
+export async function updateUserProfile(
+  uid: string,
+  data: Partial<Pick<AppUser, 'displayName' | 'username' | 'phoneNumber' | 'agentName' | 'photoURL' | 'accessStatus'>>,
+): Promise<void> {
+  await updateDoc(doc(db(), 'users', uid), stripUndefined({ ...data, updatedAt: new Date().toISOString() }));
+}
+
+export async function deleteUserProfile(uid: string): Promise<void> {
+  await deleteDoc(doc(db(), 'users', uid));
 }
 
 // ── Templates ──────────────────────────────────────────────────────────────
@@ -92,7 +101,7 @@ export async function createDocument(doc_: Omit<Document, 'id' | 'createdAt' | '
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  const snap = await getDocs(query(collection(db(), 'documents'), orderBy('createdAt', 'desc')));
+  const snap = await getDocs(query(collection(db(), 'documents'), orderBy('updatedAt', 'desc')));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Document));
 }
 
@@ -115,7 +124,7 @@ export function subscribeToDocuments(
   callback: (docs: Document[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  const q = query(collection(db(), 'documents'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db(), 'documents'), orderBy('updatedAt', 'desc'));
   return onSnapshot(
     q,
     (snap) => callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Document))),

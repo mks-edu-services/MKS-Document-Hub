@@ -1,10 +1,11 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather } from "@/components/AppIcons";
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface EmptyStateProps {
-  icon?: keyof typeof Feather.glyphMap;
+  icon?: string;
   title: string;
   subtitle?: string;
   action?: { label: string; onPress: () => void };
@@ -12,6 +13,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon = 'inbox', title, subtitle, action }: EmptyStateProps) {
   const colors = useColors();
+  const { t } = useLanguage();
   return (
     <View style={styles.container}>
       <View style={[styles.iconCircle, { backgroundColor: colors.navyLight }]}>
@@ -25,7 +27,7 @@ export function EmptyState({ icon = 'inbox', title, subtitle, action }: EmptySta
           activeOpacity={0.8}
           style={[styles.actionBtn, { backgroundColor: colors.primary }]}
         >
-          <Text style={[styles.actionText, { color: colors.primaryForeground }]}>{action.label}</Text>
+          <Text style={[styles.actionText, { color: colors.primaryForeground }]}>{action.label || t("newDocument")}</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { isDriveConfigured, uploadDocumentToDrive } from "../lib/googleDrive";
+import { isDriveConfigured, searchDriveFiles, uploadDocumentToDrive } from "../lib/googleDrive";
 
 const driveRouter = Router();
 
@@ -35,7 +35,27 @@ driveRouter.post("/drive/upload", async (req, res) => {
     res.json(result);
   } catch (err: any) {
     req.log.error({ err }, "Drive upload failed");
-    res.status(500).json({ error: err?.message ?? "Drive upload failed" });
+    const status = Number(err?.response?.status ?? err?.status);
+    const code = Number.isFinite(status) && status >= 400 ? status : 502;
+    res.status(code).json({ error: err?.message ?? "Drive upload failed" });
+  }
+});
+
+driveRouter.get("/drive/search", async (req, res) => {
+  if (!isDriveConfigured()) {
+    res.status(503).json({ error: "Google Drive is not configured. Connect your Google account first." });
+    return;
+  }
+
+  const q = typeof req.query.q === "string" ? req.query.q : "";
+  try {
+    const results = await searchDriveFiles(q);
+    res.json({ results });
+  } catch (err: any) {
+    req.log.error({ err }, "Drive search failed");
+    const status = Number(err?.response?.status ?? err?.status);
+    const code = Number.isFinite(status) && status >= 400 ? status : 502;
+    res.status(code).json({ error: err?.message ?? "Drive search failed" });
   }
 });
 

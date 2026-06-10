@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather } from "@/components/AppIcons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
@@ -16,12 +16,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MKSLogo } from "@/components/MKSLogo";
 import { SetupBanner } from "@/components/SetupBanner";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useLanguage();
   const { signIn, signUp, isFirebaseReady } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -34,11 +37,11 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     if (!email.trim() || !password.trim()) {
-      setError("Please fill in all required fields.");
+      setError(t("fieldRequired"));
       return;
     }
     if (mode === "register" && !displayName.trim()) {
-      setError("Please enter your full name.");
+      setError(t("fullNameRequired"));
       return;
     }
     setError("");
@@ -53,11 +56,11 @@ export default function LoginScreen() {
     } catch (e: any) {
       const msg =
         e?.code === "auth/invalid-credential" || e?.code === "auth/wrong-password"
-          ? "Invalid email or password."
+          ? t("invalidEmailOrPassword")
           : e?.code === "auth/email-already-in-use"
-          ? "This email is already registered."
+          ? t("emailAlreadyRegistered")
           : e?.code === "auth/weak-password"
-          ? "Password must be at least 6 characters."
+          ? t("passwordTooShort")
           : e?.message ?? "Something went wrong. Please try again.";
       setError(msg);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -86,29 +89,30 @@ export default function LoginScreen() {
         >
           <View style={styles.logoArea}>
             <MKSLogo size="large" light />
-            <Text style={styles.tagline}>Document Management System</Text>
+            <Text style={styles.tagline}>{t("documentManagementSystem")}</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <LanguageToggle />
             {!isFirebaseReady && <SetupBanner />}
 
             <Text style={[styles.cardTitle, { color: colors.foreground }]}>
-              {mode === "login" ? "Welcome Back" : "Create Account"}
+              {mode === "login" ? t("welcomeBack") : t("createAccount")}
             </Text>
             <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
               {mode === "login"
-                ? "Sign in to access your documents"
-                : "Register to get started"}
+                ? t("signInToAccessDocuments")
+                : t("registerToGetStarted")}
             </Text>
 
             {mode === "register" && (
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.foreground }]}>Full Name</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>{t("fullName")}</Text>
                 <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
                   <Feather name="user" size={16} color={colors.mutedForeground} />
                   <TextInput
                     style={[styles.input, { color: colors.foreground }]}
-                    placeholder="Your full name"
+                    placeholder={t("yourFullName")}
                     placeholderTextColor={colors.mutedForeground}
                     value={displayName}
                     onChangeText={setDisplayName}
@@ -120,7 +124,7 @@ export default function LoginScreen() {
             )}
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.foreground }]}>Email Address</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>{t("emailAddress")}</Text>
               <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
                 <Feather name="mail" size={16} color={colors.mutedForeground} />
                 <TextInput
@@ -138,12 +142,12 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>{t("password")}</Text>
               <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
                 <Feather name="lock" size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="Enter your password"
+                  placeholder={t("enterPassword")}
                   placeholderTextColor={colors.mutedForeground}
                   value={password}
                   onChangeText={setPassword}
@@ -174,7 +178,7 @@ export default function LoginScreen() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <Text style={styles.submitText}>
-                  {mode === "login" ? "Sign In" : "Create Account"}
+                  {mode === "login" ? t("signIn") : t("createAccount")}
                 </Text>
               )}
             </TouchableOpacity>
@@ -191,12 +195,12 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.toggleText, { color: colors.primary }]}>
-                {mode === "login" ? "Create a new account" : "Already have an account? Sign in"}
+                {mode === "login" ? t("createNewAccount") : t("alreadyHaveAccountSignIn")}
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footer}>MKS Education Service © 2025</Text>
+          <Text style={styles.footer}>{t("loginFooter")}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>

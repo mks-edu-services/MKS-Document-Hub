@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppUser, UserRole } from '@/types';
-import { createUser, getUser, updateUserProfile } from '@/lib/firestore';
+import { createUser, deleteUserProfile, getUser, updateUserProfile } from '@/lib/firestore';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { deleteUser } from 'firebase/auth';
 
 interface AuthContextValue {
   user: AppUser | null;
@@ -10,7 +11,8 @@ interface AuthContextValue {
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
-  updateProfile: (data: { displayName?: string; agentName?: string }) => Promise<void>;
+  updateProfile: (data: { displayName?: string; username?: string; phoneNumber?: string; agentName?: string; photoURL?: string }) => Promise<void>;
+  deleteCurrentAccount: () => Promise<void>;
   isFirebaseReady: boolean;
 }
 
@@ -22,6 +24,7 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
   refreshUser: async () => {},
   updateProfile: async () => {},
+  deleteCurrentAccount: async () => {},
   isFirebaseReady: false,
 });
 
@@ -44,19 +47,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { onAuthStateChanged } = await import('firebase/auth');
+      const { onAuthStateChanged, signOut: fbSignOut } = await import('firebase/auth');
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           const appUser = await getUser(firebaseUser.uid);
           if (appUser) {
+            if ((appUser.accessStatus ?? "allowed") === "denied") {
+              await fbSignOut(auth);
+              setUser(null);
+              setLoading(false);
+              return;
+            }
             setUser(appUser);
           } else {
             const newUser: AppUser = {
               uid: firebaseUser.uid,
               email: firebaseUser.email ?? '',
               displayName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'User',
+              username: firebaseUser.email?.split('@')[0] ?? 'user',
+              phoneNumber: '',
               role: 'viewer' as UserRole,
+              accessStatus: 'allowed',
               createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
               ...(firebaseUser.photoURL ? { photoURL: firebaseUser.photoURL } : {}),
             };
             await createUser(newUser);
@@ -101,10 +114,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (fresh) setUser(fresh);
   }, [user]);
 
-  const updateProfile = useCallback(async (data: { displayName?: string; agentName?: string }) => {
+  const updateProfile = useCallback(async (data: { displayName?: string; username?: string; phoneNumber?: string; agentName?: string; photoURL?: string }) => {
     if (!user) return;
     await updateUserProfile(user.uid, data);
     setUser((u) => u ? { ...u, ...data } : u);
+  }, [user]);
+
+  const deleteCurrentAccount = useCallback(async () => {
+    const auth = await getFirebaseAuth();
+    if (!auth?.currentUser || !user) return;
+    await deleteUserProfile(user.uid).catch(() => {});
+    await deleteUser(auth.currentUser);
+    setUser(null);
   }, [user]);
 
   return (
@@ -116,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshUser,
       updateProfile,
+      deleteCurrentAccount,
       isFirebaseReady: isFirebaseConfigured,
     }}>
       {children}

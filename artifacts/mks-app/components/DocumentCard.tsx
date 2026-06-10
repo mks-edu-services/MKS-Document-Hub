@@ -1,12 +1,15 @@
-import { Feather, MaterialIcons } from '@expo/vector-icons';
+import { Feather, MaterialIcons } from "@/components/AppIcons";
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useLanguage } from '@/context/LanguageContext';
 import { Document, DocumentStatus } from '@/types';
+import { getRegistryDisplayTitle, localizeDigits } from "@/lib/registry";
 
 interface DocumentCardProps {
   document: Document;
   onPress: () => void;
+  serialNumber?: number;
 }
 
 const statusConfig: Record<DocumentStatus, { label: string; color: string; bg: string }> = {
@@ -23,16 +26,38 @@ const serviceIcons: Record<string, string> = {
   'Default': 'insert-drive-file',
 };
 
-export function DocumentCard({ document, onPress }: DocumentCardProps) {
+export function DocumentCard({ document, onPress, serialNumber }: DocumentCardProps) {
   const colors = useColors();
+  const { formatDate, translateServiceType, translateStatus, t, language } = useLanguage();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
   const status = statusConfig[document.status] || statusConfig.active;
   const iconName = serviceIcons[document.serviceType] || serviceIcons.Default;
+  const displayTitle = getRegistryDisplayTitle(document, language);
+  const displaySubtitle = document.fatherName || document.studentName;
 
   const dateStr = document.date
-    ? new Date(document.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? formatDate(document.date, { day: 'numeric', month: 'short', year: 'numeric' })
     : document.createdAt
-    ? new Date(document.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    ? formatDate(document.createdAt, { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
+  const updatedStr = document.updatedAt
+    ? formatDate(document.updatedAt, { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+  const showUpdated = Boolean(updatedStr && updatedStr !== dateStr);
+  const driveState = document.driveSyncStatus ?? (document.driveFileUrl ? 'synced' : 'pending');
+  const driveText =
+    driveState === 'synced'
+      ? t("driveSynced")
+      : driveState === 'failed'
+      ? t("driveFailed")
+      : t("drivePending");
+  const driveColor =
+    driveState === 'synced'
+      ? colors.success
+      : driveState === 'failed'
+      ? colors.destructive
+      : colors.warning;
 
   return (
     <TouchableOpacity
@@ -44,24 +69,49 @@ export function DocumentCard({ document, onPress }: DocumentCardProps) {
         <MaterialIcons name={iconName as any} size={22} color={colors.primary} />
       </View>
       <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={1}>{document.title}</Text>
+        {serialNumber ? (
+          <View style={[styles.serialWrap, { backgroundColor: colors.navyLight }]}>
+            <Text style={[styles.serialText, { color: colors.primary }]}>
+              {t("serial")} {localizeDigits(serialNumber, language)}
+            </Text>
+          </View>
+        ) : null}
+        <View style={[styles.topRow, isCompact && styles.topRowCompact]}>
+          <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={isCompact ? 2 : 1}>
+            {displayTitle}
+          </Text>
           <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+            <Text style={[styles.statusText, { color: status.color }]}>{translateStatus(document.status)}</Text>
           </View>
         </View>
-        <Text style={[styles.studentName, { color: colors.accent }]} numberOfLines={1}>
-          {document.studentName}
+        <Text style={[styles.studentName, { color: colors.accent }]} numberOfLines={isCompact ? 2 : 1}>
+          {displaySubtitle}
         </Text>
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Feather name="book-open" size={11} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{document.school || 'No school'}</Text>
+            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{document.school || t("school")}</Text>
           </View>
           <View style={styles.metaDot} />
-          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{document.serviceType}</Text>
+          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{translateServiceType(document.serviceType)}</Text>
           <View style={styles.metaDot} />
           <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{dateStr}</Text>
+          {showUpdated ? (
+            <>
+              <View style={styles.metaDot} />
+              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{`${t("lastUpdated")} ${updatedStr}`}</Text>
+            </>
+          ) : null}
+          <View style={styles.metaDot} />
+          <Text style={[styles.metaText, { color: driveColor }]}>
+            {driveText}
+          </Text>
+          {document.scanFileName ? (
+            <>
+              <View style={styles.metaDot} />
+              <Text style={[styles.metaText, { color: colors.accent }]}>{t("scanLinked")}</Text>
+            </>
+          ) : null}
         </View>
       </View>
       <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
@@ -90,19 +140,33 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
   },
+  serialWrap: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  serialText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  topRowCompact: { alignItems: "flex-start" },
   title: {
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
+    flexShrink: 1,
+    lineHeight: 20,
   },
   studentName: {
     fontSize: 13,
     fontWeight: '500',
+    lineHeight: 18,
   },
   metaRow: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather } from "@/components/AppIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
   Platform,
@@ -11,35 +12,39 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { subscribeToDocuments } from "@/lib/firestore";
 import { Document } from "@/types";
 
-const ROLE_CONFIG = {
-  admin: { label: "Admin", color: "#7c3aed", bg: "#ede9fe" },
-  editor: { label: "Editor", color: "#0369a1", bg: "#e0f2fe" },
-  viewer: { label: "Viewer", color: "#374151", bg: "#f3f4f6" },
-};
-
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, signOut, updateProfile, isFirebaseReady } = useAuth();
+  const { t } = useLanguage();
+  const { user, signOut, updateProfile, deleteCurrentAccount, isFirebaseReady } = useAuth();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [editingName, setEditingName] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [editingPhone, setEditingPhone] = useState(false);
   const [editingAgent, setEditingAgent] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
   const [agentName, setAgentName] = useState(user?.agentName ?? "");
   const [saving, setSaving] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
 
   const [myDocs, setMyDocs] = useState<Document[]>([]);
 
   useEffect(() => {
     setDisplayName(user?.displayName ?? "");
+    setUsername(user?.username ?? "");
+    setPhoneNumber(user?.phoneNumber ?? "");
     setAgentName(user?.agentName ?? "");
   }, [user]);
 
@@ -58,7 +63,29 @@ export default function ProfileScreen() {
       await updateProfile({ displayName: displayName.trim() });
       setEditingName(false);
     } catch {
-      Alert.alert("Error", "Failed to update name.");
+      Alert.alert(t("error"), t("failedToUpdateName"));
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveUsername() {
+    setSaving(true);
+    try {
+      await updateProfile({ username: username.trim() });
+      setEditingUsername(false);
+    } catch {
+      Alert.alert(t("error"), t("failedToUpdateName"));
+    }
+    setSaving(false);
+  }
+
+  async function handleSavePhone() {
+    setSaving(true);
+    try {
+      await updateProfile({ phoneNumber: phoneNumber.trim() });
+      setEditingPhone(false);
+    } catch {
+      Alert.alert(t("error"), t("failedToUpdateName"));
     }
     setSaving(false);
   }
@@ -69,20 +96,73 @@ export default function ProfileScreen() {
       await updateProfile({ agentName: agentName.trim() });
       setEditingAgent(false);
     } catch {
-      Alert.alert("Error", "Failed to update agent name.");
+      Alert.alert(t("error"), t("failedToUpdateAgentName"));
     }
     setSaving(false);
   }
 
+  async function handlePickPhoto() {
+    if (!user) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(t("error"), t("permissionRequired"));
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const photoURL = asset.base64
+      ? `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`
+      : asset.uri;
+
+    setSavingPhoto(true);
+    try {
+      await updateProfile({ photoURL });
+    } catch {
+      Alert.alert(t("error"), t("failedToUpdateProfilePhoto"));
+    } finally {
+      setSavingPhoto(false);
+    }
+  }
+
   async function handleSignOut() {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: signOut },
+    Alert.alert(t("signOut"), t("signOutConfirm"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("signOut"), style: "destructive", onPress: signOut },
+    ]);
+  }
+
+  async function handleDeleteAccount() {
+    Alert.alert(t("deleteUser"), `${t("deleteUser")} ? ${t("cannotBeUndone")}`, [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteCurrentAccount();
+          } catch {
+            Alert.alert(t("error"), t("accountDeleted"));
+          }
+        },
+      },
     ]);
   }
 
   const role = user?.role ?? "viewer";
-  const roleConfig = ROLE_CONFIG[role];
+  const roleConfig = {
+    admin: { label: t("admin"), color: "#7c3aed", bg: "#ede9fe" },
+    editor: { label: t("editor"), color: "#0369a1", bg: "#e0f2fe" },
+    viewer: { label: t("viewer"), color: "#374151", bg: "#f3f4f6" },
+  }[role];
   const initial = (user?.displayName ?? "U").charAt(0).toUpperCase();
 
   const totalDocs = myDocs.length;
@@ -102,9 +182,22 @@ export default function ProfileScreen() {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.avatarWrap}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
+          <TouchableOpacity onPress={handlePickPhoto} activeOpacity={0.85} style={styles.avatarTouch}>
+            <View style={styles.avatar}>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{initial}</Text>
+              )}
+              <View style={[styles.avatarBadge, { backgroundColor: colors.primary }]}>
+                {savingPhoto ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Feather name="camera" size={12} color="#fff" />
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
           <View style={[styles.rolePill, { backgroundColor: roleConfig.bg }]}>
             <Text style={[styles.roleText, { color: roleConfig.color }]}>{roleConfig.label}</Text>
           </View>
@@ -115,9 +208,9 @@ export default function ProfileScreen() {
 
       <View style={styles.statsRow}>
         {[
-          { label: "My Docs", value: totalDocs, color: colors.primary },
-          { label: "Active", value: activeDocs, color: colors.success },
-          { label: "Drafts", value: draftDocs, color: colors.warning },
+          { label: t("myDocs"), value: totalDocs, color: colors.primary },
+          { label: t("active"), value: activeDocs, color: colors.success },
+          { label: t("drafts"), value: draftDocs, color: colors.warning },
         ].map((s) => (
           <View key={s.label} style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
@@ -127,14 +220,15 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.cardTitle, { color: colors.primary }]}>Profile Information</Text>
+        <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("profileInformation")}</Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>{t("tapAvatarToChangePhoto")}</Text>
 
         <View style={styles.fieldRow}>
           <View style={styles.fieldLeft}>
             <Feather name="user" size={14} color={colors.accent} />
             <View>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Display Name</Text>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("displayName")}</Text>
               {editingName ? (
                 <TextInput
                   value={displayName}
@@ -169,16 +263,90 @@ export default function ProfileScreen() {
 
         <View style={styles.fieldRow}>
           <View style={styles.fieldLeft}>
+            <Feather name="at-sign" size={14} color={colors.accent} />
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("username")}</Text>
+              {editingUsername ? (
+                <TextInput
+                  value={username}
+                  onChangeText={setUsername}
+                  style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border }]}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveUsername}
+                />
+              ) : (
+                <Text style={[styles.fieldValue, { color: colors.foreground }]}>{user?.username ?? "—"}</Text>
+              )}
+            </View>
+          </View>
+          {editingUsername ? (
+            <View style={styles.editBtns}>
+              <TouchableOpacity onPress={() => setEditingUsername(false)} disabled={saving}>
+                <Feather name="x" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveUsername} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color={colors.accent} /> : <Feather name="check" size={18} color={colors.accent} />}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setEditingUsername(true)}>
+              <Feather name="edit-2" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={[styles.separator, { backgroundColor: colors.border }]} />
+
+        <View style={styles.fieldRow}>
+          <View style={styles.fieldLeft}>
+            <Feather name="phone" size={14} color={colors.accent} />
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("phoneNumber")}</Text>
+              {editingPhone ? (
+                <TextInput
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border }]}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSavePhone}
+                />
+              ) : (
+                <Text style={[styles.fieldValue, { color: colors.foreground }]}>{user?.phoneNumber ?? "—"}</Text>
+              )}
+            </View>
+          </View>
+          {editingPhone ? (
+            <View style={styles.editBtns}>
+              <TouchableOpacity onPress={() => setEditingPhone(false)} disabled={saving}>
+                <Feather name="x" size={18} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSavePhone} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color={colors.accent} /> : <Feather name="check" size={18} color={colors.accent} />}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => setEditingPhone(true)}>
+              <Feather name="edit-2" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={[styles.separator, { backgroundColor: colors.border }]} />
+
+        <View style={styles.fieldRow}>
+          <View style={styles.fieldLeft}>
             <Feather name="briefcase" size={14} color={colors.accent} />
             <View>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Agent Name</Text>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("agentName")}</Text>
               {editingAgent ? (
                 <TextInput
                   value={agentName}
                   onChangeText={setAgentName}
                   style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border }]}
                   autoFocus
-                  placeholder="Your agent / staff name"
+                  placeholder={t("agentName")}
                   placeholderTextColor={colors.mutedForeground}
                   returnKeyType="done"
                   onSubmitEditing={handleSaveAgent}
@@ -210,7 +378,7 @@ export default function ProfileScreen() {
           <View style={styles.fieldLeft}>
             <Feather name="mail" size={14} color={colors.accent} />
             <View>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Email</Text>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("email")}</Text>
               <Text style={[styles.fieldValue, { color: colors.foreground }]}>{user?.email ?? "—"}</Text>
             </View>
           </View>
@@ -222,7 +390,7 @@ export default function ProfileScreen() {
           <View style={styles.fieldLeft}>
             <Feather name="shield" size={14} color={colors.accent} />
             <View>
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Role</Text>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{t("role")}</Text>
               <View style={[styles.rolePillInline, { backgroundColor: roleConfig.bg }]}>
                 <Text style={[styles.rolePillText, { color: roleConfig.color }]}>{roleConfig.label}</Text>
               </View>
@@ -232,10 +400,10 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.cardTitle, { color: colors.primary }]}>Account</Text>
+        <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("account")}</Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <Text style={[styles.memberSince, { color: colors.mutedForeground }]}>
-          Member since{" "}
+          {t("memberSince")}{" "}
           {user?.createdAt
             ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })
             : "—"}
@@ -248,7 +416,16 @@ export default function ProfileScreen() {
         activeOpacity={0.8}
       >
         <Feather name="log-out" size={16} color={colors.destructive} />
-        <Text style={[styles.signOutText, { color: colors.destructive }]}>Sign Out</Text>
+        <Text style={[styles.signOutText, { color: colors.destructive }]}>{t("signOut")}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={handleDeleteAccount}
+        style={[styles.deleteBtn, { borderColor: colors.destructive }]}
+        activeOpacity={0.8}
+      >
+        <Feather name="trash-2" size={16} color={colors.destructive} />
+        <Text style={[styles.signOutText, { color: colors.destructive }]}>{t("deleteUser")}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -267,8 +444,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 3,
     borderColor: "rgba(255,255,255,0.4)",
+    overflow: "hidden",
   },
+  avatarTouch: { borderRadius: 40 },
+  avatarImage: { width: "100%", height: "100%" },
   avatarText: { fontSize: 32, fontWeight: "800", color: "#fff" },
+  avatarBadge: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.9)",
+  },
   rolePill: {
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -302,6 +494,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   divider: { height: 1, marginVertical: 12 },
+  photoHint: { fontSize: 12, marginTop: 10, marginBottom: 2 },
   separator: { height: 1, marginVertical: 4 },
   fieldRow: {
     flexDirection: "row",
@@ -327,6 +520,18 @@ const styles = StyleSheet.create({
   signOutBtn: {
     marginHorizontal: 16,
     marginTop: 20,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  deleteBtn: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 30,
     borderWidth: 1.5,
     borderRadius: 12,
     paddingVertical: 14,

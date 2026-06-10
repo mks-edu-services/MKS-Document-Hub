@@ -5,6 +5,7 @@ const { Readable } = require("stream");
 const { pipeline } = require("stream/promises");
 
 let metroProcess = null;
+const pnpmExecPath = process.env.npm_execpath;
 
 const projectRoot = path.resolve(__dirname, "..");
 
@@ -127,6 +128,14 @@ function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
 }
 
+function spawnPnpm(args, options) {
+  if (pnpmExecPath) {
+    return spawn(process.execPath, [pnpmExecPath, ...args], options);
+  }
+
+  return spawn("pnpm", args, options);
+}
+
 async function startMetro(expoPublicDomain, expoPublicReplId) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
@@ -146,8 +155,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
   }
 
-  metroProcess = spawn(
-    "pnpm",
+  metroProcess = spawnPnpm(
     [
       "exec",
       "expo",
