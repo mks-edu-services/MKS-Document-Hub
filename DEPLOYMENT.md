@@ -13,6 +13,12 @@ The frontend is built from `artifacts/mks-app` and deployed to Firebase Hosting.
 pnpm run deploy:web
 ```
 
+To pin the web build to a specific backend host, pass:
+
+```bash
+pnpm run deploy:web -- --api-base=https://your-api-host/api
+```
+
 The deploy script expects one Firebase auth method:
 
 - `GOOGLE_APPLICATION_CREDENTIALS_JSON` — recommended for reliable non-interactive deploys

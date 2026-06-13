@@ -48,6 +48,7 @@ The web app is designed to run from Firebase Hosting, but the API server still n
 - If you keep the frontend and backend on the same origin, the app will still fall back to `/api`
 - Recommended backend auth: a Google Drive service account, shared to the target Drive folder, using `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` or `GOOGLE_APPLICATION_CREDENTIALS`
 - The backend can be deployed from `Dockerfile.api-server` on any Node host
+- To pin a specific backend host during Firebase web deploys, run `pnpm run deploy:web -- --api-base=https://your-api-host/api`
 - The older Replit connector path still exists as a fallback, but it is no longer required
 
 See `DEPLOYMENT.md` for the step-by-step flow and `ROADMAP.md` for the feature plan.

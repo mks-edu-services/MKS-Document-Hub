@@ -12,6 +12,8 @@ const siteId = process.env.FIREBASE_HOSTING_SITE || "mksedudoc";
 const serviceAccountPath =
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
   path.join(workspaceRoot, "mks-certificate-app-cbf64-firebase-adminsdk-fbsvc-09ad142660.json");
+const apiBaseArg = process.argv.find((value) => value.startsWith("--api-base="));
+const apiBaseUrl = apiBaseArg ? apiBaseArg.split("=", 2)[1] : process.env.EXPO_PUBLIC_API_BASE_URL;
 
 function spawnNodeCommand(args, cwd, env = {}) {
   return new Promise((resolve, reject) => {
@@ -97,6 +99,7 @@ async function runExpoExport() {
     appDir,
     {
       EXPO_PUBLIC_DOMAIN: "mksedudoc.web.app",
+      ...(apiBaseUrl ? { EXPO_PUBLIC_API_BASE_URL: apiBaseUrl } : {}),
     },
   );
 }

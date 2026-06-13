@@ -113,6 +113,7 @@ export default function DocumentDetailScreen() {
     { id: string; name: string; webViewLink?: string; thumbnailLink?: string }[]
   >([]);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState("");
   const [driveHealth, setDriveHealth] = useState<DriveHealthState | null>(null);
   const [driveLinkDraft, setDriveLinkDraft] = useState("");
   const [savingDriveLink, setSavingDriveLink] = useState(false);
@@ -417,6 +418,10 @@ export default function DocumentDetailScreen() {
     document.scanFileUrl ||
     document.driveFileUrl ||
     "";
+
+  useEffect(() => {
+    setPreviewImageUrl(scanFullUrl);
+  }, [scanFullUrl]);
 
   return (
     <ScrollView
@@ -960,21 +965,26 @@ export default function DocumentDetailScreen() {
                 <Feather name="x" size={18} color={colors.foreground} />
               </TouchableOpacity>
             </View>
-            {scanFullUrl ? (
+            {previewImageUrl ? (
               <Image
-                source={{ uri: scanFullUrl }}
+                source={{ uri: previewImageUrl }}
                 style={styles.modalImage}
                 resizeMode="contain"
+                onError={() => setPreviewImageUrl("")}
               />
             ) : (
-              <Text
-                style={[
-                  styles.modalFallback,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                {t("noScanResults")}
-              </Text>
+              <View style={styles.modalFallbackBox}>
+                <Text
+                  style={[
+                    styles.modalFallback,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  {language === "en"
+                    ? "Preview unavailable. Open the Drive file or download it instead."
+                    : "ကြိုကြည့်ရန်မရသေးပါ။ Drive ဖိုင်ဖွင့်ရန် သို့မဟုတ် ဒေါင်းလုပ်လုပ်ရန် သုံးပါ။"}
+                </Text>
+              </View>
             )}
           </View>
         </View>
@@ -1219,6 +1229,14 @@ const styles = StyleSheet.create({
     minHeight: 420,
     borderRadius: 12,
     backgroundColor: "#f3f4f6",
+  },
+  modalFallbackBox: {
+    minHeight: 420,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 24,
   },
   modalFallback: { fontSize: 14, textAlign: "center", paddingVertical: 40 },
   actionsCard: { gap: 12 },

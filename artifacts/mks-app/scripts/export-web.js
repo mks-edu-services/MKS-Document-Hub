@@ -19,7 +19,7 @@ if (env.REPL_ID) {
   env.EXPO_PUBLIC_REPL_ID = env.EXPO_PUBLIC_REPL_ID || env.REPL_ID;
 }
 
-const child = spawnPnpm(["exec", "expo", "export", "--platform", "web"], {
+const child = spawnPnpm(["exec", "expo", "export", "--platform", "web", "--clear"], {
   cwd: projectRoot,
   env,
   stdio: "inherit",
