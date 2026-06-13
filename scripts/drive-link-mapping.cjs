@@ -1,4 +1,5 @@
 const fs = require("node:fs/promises");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
@@ -14,6 +15,9 @@ const serviceAccountPath =
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
   process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
   defaultServiceAccountPath;
+const driveFolderIdFromEnv = process.env.GOOGLE_DRIVE_FOLDER_ID || "";
+const DRIVE_DATA_SCOPE = "https://www.googleapis.com/auth/datastore";
+const DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 
 const COLUMNS = [
   { key: "row_status", header: "row_status", label: "Status", width: 18, guide: "matched / pending / review / duplicate / missing_drive_link" },
@@ -54,6 +58,10 @@ function parseArgs(argv) {
     command: argv[0] || "export",
     workbookPath: defaultWorkbookPath,
     outputPath: defaultWorkbookPath,
+    localRootPath: path.join("D:\\", "MKS", "အောင်လက်မှတ် စုစုပေါင်း"),
+    driveFolderId: driveFolderIdFromEnv,
+    driveFolderName: "အောင်လက်မှတ် စုစုပေါင်း",
+    scanOutputPath: path.join(repoRoot, "outputs", "drive-scan", "Google_Drive_File_Scan.xlsx"),
     dryRun: false,
     limit: null,
   };
@@ -88,6 +96,42 @@ function parseArgs(argv) {
     }
     if (arg === "--limit") {
       parsed.limit = Number(argv[index + 1]);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--drive-folder-id=")) {
+      parsed.driveFolderId = arg.split("=", 2)[1];
+      continue;
+    }
+    if (arg === "--drive-folder-id") {
+      parsed.driveFolderId = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--drive-folder-name=")) {
+      parsed.driveFolderName = arg.split("=", 2)[1];
+      continue;
+    }
+    if (arg === "--drive-folder-name") {
+      parsed.driveFolderName = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--scan-output=")) {
+      parsed.scanOutputPath = arg.split("=", 2)[1];
+      continue;
+    }
+    if (arg === "--scan-output") {
+      parsed.scanOutputPath = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--local-root-path=")) {
+      parsed.localRootPath = arg.split("=", 2)[1];
+      continue;
+    }
+    if (arg === "--local-root-path") {
+      parsed.localRootPath = argv[index + 1];
       index += 1;
     }
   }
@@ -164,11 +208,11 @@ async function loadServiceAccount() {
   return JSON.parse(raw);
 }
 
-async function getAccessToken(serviceAccount) {
+async function getAccessToken(serviceAccount, scope = DRIVE_DATA_SCOPE) {
   const now = Math.floor(Date.now() / 1000);
   const assertion = signJwt(serviceAccount.private_key, {
     iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/datastore",
+    scope,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -314,6 +358,187 @@ async function fetchCollectionDocuments(accessToken, collectionId) {
   return documents;
 }
 
+async function fetchDriveItems(accessToken, queryParts, pageSize = 1000) {
+  const items = [];
+  let pageToken = "";
+
+  do {
+    const url = new URL("https://www.googleapis.com/drive/v3/files");
+    url.searchParams.set("pageSize", String(pageSize));
+    url.searchParams.set("fields", "nextPageToken,files(id,name,mimeType,webViewLink,parents)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("q", [...queryParts, "trashed=false"].join(" and "));
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Drive list failed: ${response.status} ${await response.text()}`);
+    }
+
+    const payload = await response.json();
+    items.push(...(payload.files ?? []));
+    pageToken = payload.nextPageToken || "";
+  } while (pageToken);
+
+  return items;
+}
+
+async function findDriveFolder(accessToken, { folderId, folderName }) {
+  if (folderId) {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Drive folder lookup failed: ${response.status} ${await response.text()}`);
+    }
+    return response.json();
+  }
+
+  const folders = await fetchDriveItems(accessToken, [
+    "mimeType='application/vnd.google-apps.folder'",
+    `name='${folderName.replace(/'/g, "\\'")}'`,
+  ], 20);
+
+  if (folders.length === 0) {
+    throw new Error(`No Drive folder found with name: ${folderName}`);
+  }
+  if (folders.length > 1) {
+    console.log(`Found ${folders.length} folders named "${folderName}". Using the first match: ${folders[0].id}`);
+  }
+
+  return folders[0];
+}
+
+function buildDriveFolderPathById(folderId, folderLookup) {
+  const names = [];
+  let currentId = folderId;
+  const seen = new Set();
+
+  while (currentId && folderLookup.has(currentId) && !seen.has(currentId)) {
+    seen.add(currentId);
+    const folder = folderLookup.get(currentId);
+    names.push(folder.name);
+    const parents = folder.parents ?? [];
+    currentId = parents[0] || "";
+  }
+
+  return names.reverse().join(" > ");
+}
+
+async function scanDriveFolder(accessToken, { folderId, folderName }) {
+  const rootFolder = await findDriveFolder(accessToken, { folderId, folderName });
+  const folderLookup = new Map();
+  const files = [];
+
+  async function walk(currentFolder, ancestors) {
+    folderLookup.set(currentFolder.id, currentFolder);
+    const children = await fetchDriveItems(accessToken, [
+      `'${currentFolder.id}' in parents`,
+    ]);
+
+    for (const child of children) {
+      if (child.mimeType === "application/vnd.google-apps.folder") {
+        await walk(child, [...ancestors, currentFolder.name]);
+        continue;
+      }
+
+      const folderPath = [...ancestors, currentFolder.name].join(" > ");
+      const fileName = child.name || "";
+      files.push({
+        row_status: "pending",
+        doc_type: "",
+        academic_year: "",
+        local_root_path: "",
+        year_folder_name: "",
+        month_folder_name: "",
+        day_or_group_folder_name: "",
+        local_file_name: "",
+        local_full_path: "",
+        seat_no: "",
+        student_name: "",
+        file_alias: fileName.replace(/\.[^.]+$/, ""),
+        drive_link: child.webViewLink || (child.id ? `https://drive.google.com/open?id=${child.id}` : ""),
+        drive_file_id: child.id || "",
+        drive_file_name: fileName,
+        drive_folder_link: `https://drive.google.com/drive/folders/${currentFolder.id}`,
+        drive_folder_path: folderPath,
+        app_document_id: "",
+        match_method: "manual",
+        match_confidence: "",
+        notes: "",
+      });
+    }
+  }
+
+  await walk(rootFolder, []);
+  return files;
+}
+
+function inferAcademicYearFromParts(parts) {
+  for (const part of parts) {
+    const match = String(part).match(/(19|20)\d{2}(?:\s*[-/]\s*(19|20)?\d{2})?/);
+    if (match) return match[0].replace(/\s+/g, "");
+  }
+  return "";
+}
+
+async function scanLocalFolder(localRootPath) {
+  const root = path.resolve(localRootPath);
+  const files = [];
+
+  async function walk(currentPath) {
+    const entries = await fs.readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(entryPath);
+        continue;
+      }
+
+      const relativePath = path.relative(root, entryPath);
+      const relativeParts = relativePath.split(path.sep);
+      const folderParts = relativeParts.slice(0, -1);
+      const fileName = relativeParts.at(-1) || entry.name;
+      const driveFolderPath = folderParts.join(" > ");
+      const academicYear = inferAcademicYearFromParts(relativeParts) || inferAcademicYearFromParts(folderParts);
+
+      files.push({
+        row_status: "pending",
+        doc_type: "",
+        academic_year: academicYear,
+        local_root_path: root,
+        year_folder_name: folderParts[0] || "",
+        month_folder_name: folderParts[1] || "",
+        day_or_group_folder_name: folderParts[2] || "",
+        local_file_name: fileName,
+        local_full_path: entryPath,
+        seat_no: "",
+        student_name: "",
+        file_alias: fileName.replace(/\.[^.]+$/, ""),
+        drive_link: "",
+        drive_file_id: "",
+        drive_file_name: fileName,
+        drive_folder_link: "",
+        drive_folder_path: driveFolderPath,
+        app_document_id: "",
+        match_method: "manual",
+        match_confidence: "",
+        notes: "",
+      });
+    }
+  }
+
+  await walk(root);
+  return files;
+}
+
 function parseWorkbookRows(workbookPath) {
   const pythonScript = `
 import json
@@ -363,8 +588,14 @@ print(json.dumps({
   return JSON.parse(result.stdout);
 }
 
-async function exportWorkbook(outputPath) {
+async function exportWorkbook(outputPath, dataRows = []) {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const dataRowsPath = dataRows.length
+    ? path.join(os.tmpdir(), `drive-link-mapping-${Date.now()}-${Math.random().toString(16).slice(2)}.json`)
+    : "";
+  if (dataRowsPath) {
+    await fs.writeFile(dataRowsPath, JSON.stringify(dataRows), "utf8");
+  }
 
   const pythonScript = `
 from openpyxl import Workbook
@@ -379,6 +610,10 @@ columns = json.loads(sys.argv[2])
 status_options = json.loads(sys.argv[3])
 doc_type_options = json.loads(sys.argv[4])
 guide_rows = json.loads(sys.argv[5])
+data_rows = []
+if len(sys.argv) > 6 and sys.argv[6]:
+    with open(sys.argv[6], "r", encoding="utf-8") as handle:
+        data_rows = json.load(handle)
 
 wb = Workbook()
 ws = wb.active
@@ -440,6 +675,12 @@ doc_type_validation.add(f"B5:B2000")
 for row in range(5, 2001):
     for col in range(1, len(columns) + 1):
         cell = ws.cell(row=row, column=col)
+        cell.border = border
+        cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+for row_index, row_values in enumerate(data_rows, start=5):
+    for col_index, value in enumerate(row_values, start=1):
+        cell = ws.cell(row=row_index, column=col_index, value=value)
         cell.border = border
         cell.alignment = Alignment(vertical="top", wrap_text=True)
 
@@ -506,9 +747,14 @@ print(output_path)
         ["match_confidence", "Confidence 0-100", "100", "optional"],
         ["notes", "Notes", "extra remarks", "optional"],
       ]),
+      dataRowsPath,
     ],
     { encoding: "utf8", maxBuffer: 1024 * 1024 * 8 },
   );
+
+  if (dataRowsPath) {
+    await fs.rm(dataRowsPath, { force: true }).catch(() => {});
+  }
 
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || "Failed to export workbook");
@@ -649,6 +895,28 @@ async function main() {
   if (args.command === "export") {
     const target = args.outputPath || defaultWorkbookPath;
     const saved = await exportWorkbook(target);
+    console.log(saved);
+    return;
+  }
+
+  if (args.command === "scan-drive") {
+    const serviceAccount = await loadServiceAccount();
+    const accessToken = await getAccessToken(serviceAccount, DRIVE_READ_SCOPE);
+    const scannedRows = await scanDriveFolder(accessToken, {
+      folderId: args.driveFolderId,
+      folderName: args.driveFolderName,
+    });
+    const target = args.scanOutputPath || path.join(repoRoot, "outputs", "drive-scan", "Google_Drive_File_Scan.xlsx");
+    const saved = await exportWorkbook(target, scannedRows.map((row) => COLUMNS.map((column) => row[column.key] ?? "")));
+    console.log(saved);
+    return;
+  }
+
+  if (args.command === "scan-local") {
+    const targetRoot = args.localRootPath || path.join("D:\\", "MKS", "အောင်လက်မှတ် စုစုပေါင်း");
+    const scannedRows = await scanLocalFolder(targetRoot);
+    const target = args.scanOutputPath || path.join(repoRoot, "outputs", "local-scan", "Local_File_Mapping.xlsx");
+    const saved = await exportWorkbook(target, scannedRows.map((row) => COLUMNS.map((column) => row[column.key] ?? "")));
     console.log(saved);
     return;
   }

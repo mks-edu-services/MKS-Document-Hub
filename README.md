@@ -35,6 +35,10 @@ pnpm run deploy:web
 - `pnpm --filter @workspace/api-server run dev` — build and start the API server
 - `pnpm run deploy:api` — deploy the API server to the live Google Cloud host and repoint web env
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client and Zod types
+- `pnpm run drive:template` — generate the Google Drive mapping workbook template
+- `pnpm run drive:scan` — scan a shared Drive folder and prefill the mapping workbook
+- `pnpm run drive:scan-local` — scan the local synced `D:\MKS\အောင်လက်မှတ် စုစုပေါင်း` folder and prefill the workbook
+- `pnpm run drive:import` — import Drive link rows into Firestore
 - `pnpm --filter @workspace/db run push` — apply database schema changes during development
 - `pnpm run typecheck` — run TypeScript checks across the workspace
 - `pnpm run build` — typecheck and build all workspace packages
@@ -56,6 +60,7 @@ The web app is designed to run from Firebase Hosting, but the API server still n
 
 See `DEPLOYMENT.md` for the step-by-step flow and `ROADMAP.md` for the feature plan.
 For a reusable cross-project summary, see `PROJECT_HANDOFF.md`.
+For the easiest Drive bulk steps, see `DRIVE_BULK_WORKFLOW.md`.
 
 ## How the app works
 

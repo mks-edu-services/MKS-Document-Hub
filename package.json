@@ -8,6 +8,8 @@
     "deploy:api": "node ./scripts/deploy-api.cjs",
     "deploy:web": "node ./scripts/deploy-web.cjs",
     "drive:template": "node ./scripts/drive-link-mapping.cjs export",
+    "drive:scan": "node ./scripts/drive-link-mapping.cjs scan-drive",
+    "drive:scan-local": "node ./scripts/drive-link-mapping.cjs scan-local",
     "drive:import": "node ./scripts/drive-link-mapping.cjs import",
     "import:registry": "node ./scripts/import-registry.cjs",
     "typecheck:libs": "tsc --build",
