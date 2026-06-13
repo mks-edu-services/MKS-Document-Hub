@@ -46,6 +46,9 @@ The web app is designed to run from Firebase Hosting, but the API server still n
 - Frontend hosting target: `https://mksedudoc.web.app`
 - API server base URL: set `EXPO_PUBLIC_API_BASE_URL` to the hosted API prefix, for example `https://api.example.com/api`
 - If you keep the frontend and backend on the same origin, the app will still fall back to `/api`
+- Recommended backend auth: a Google Drive service account, shared to the target Drive folder, using `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` or `GOOGLE_APPLICATION_CREDENTIALS`
+- The backend can be deployed from `Dockerfile.api-server` on any Node host
+- The older Replit connector path still exists as a fallback, but it is no longer required
 
 See `DEPLOYMENT.md` for the step-by-step flow and `ROADMAP.md` for the feature plan.
 For a reusable cross-project summary, see `PROJECT_HANDOFF.md`.
@@ -102,11 +105,13 @@ Some scripts expect Replit-provided variables such as:
 
 The API server uses Google Drive integration when configured. Related env vars include:
 
-- `GOOGLE_DRIVE_CONNECTION_ID`
+- `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` — preferred inline service account JSON for the backend host
+- `GOOGLE_APPLICATION_CREDENTIALS` — optional path to a service account JSON file on disk
+- `GOOGLE_DRIVE_CONNECTION_ID` — optional Replit connector fallback
 - `GOOGLE_DRIVE_FOLDER_ID` — optional Google Drive folder ID for placing uploaded documents in a dedicated folder
-- `REPLIT_CONNECTORS_HOSTNAME`
-- `REPL_IDENTITY`
-- `WEB_REPL_RENEWAL`
+- `REPLIT_CONNECTORS_HOSTNAME` — optional Replit connector fallback
+- `REPL_IDENTITY` — optional Replit connector fallback
+- `WEB_REPL_RENEWAL` — optional Replit connector fallback
 
 ### Firebase deploy auth
 

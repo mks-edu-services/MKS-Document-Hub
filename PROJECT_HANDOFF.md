@@ -343,7 +343,7 @@ This follow-up update focused on the case where a record already has a Google Dr
 
 - A new backend route was added to stream Drive previews:
   - `GET /api/drive/files/:fileId/preview`
-- The route uses the configured Google Drive connector token and streams the image back to the app.
+- The route now uses a Google service account first and can still fall back to the older Replit connector path if needed.
 
 ### Validation
 
@@ -365,6 +365,23 @@ This follow-up adjustment keeps the hosted web app from pretending the same-orig
 - The Drive status banner now short-circuits when no explicit backend URL is set, instead of fetching `/api/drive/health` from the Firebase Hosting site and receiving HTML.
 - The document scan preview click target now falls back to opening the saved Drive link directly, so the user still has a working path to the file even when the preview proxy is unavailable.
 - The scan section now shows explicit `Open Drive` and `Download` actions whenever a Drive link is saved, so users can still view or retrieve the file without needing inline image embedding.
+
+## 16) June 2026 Update — Service Account Backend Path
+
+This update removes the dependency on Replit connectors for the backend path when a normal Node host is available.
+
+### What changed
+
+- The Google Drive backend now prefers a Google service account JSON key or credentials file.
+- Replit connector auth remains a fallback, not a requirement.
+- The backend now supports inline preview streaming and upload using the same Drive API client, provided the service account can access the target folder.
+- A deploy-ready `Dockerfile.api-server` was added so the backend can run on a standard Node container host.
+
+### Deployment reminder
+
+- Share the target Drive folder with the service account email.
+- Set `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` or `GOOGLE_APPLICATION_CREDENTIALS` on the backend host.
+- Point the web build at the backend with `EXPO_PUBLIC_API_BASE_URL`.
 
 ### Result
 

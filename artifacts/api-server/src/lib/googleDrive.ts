@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { readFile } from "node:fs/promises";
 import { logger } from "./logger";
 
 const CONNECTORS_HOSTNAME = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -6,9 +7,19 @@ const REPL_IDENTITY = process.env.REPL_IDENTITY;
 const WEB_REPL_RENEWAL = process.env.WEB_REPL_RENEWAL;
 const CONNECTION_ID = process.env.GOOGLE_DRIVE_CONNECTION_ID;
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"];
+
+type DriveServiceAccount = {
+  client_email: string;
+  private_key: string;
+};
 
 export function isDriveConfigured(): boolean {
-  return !!(CONNECTORS_HOSTNAME && CONNECTION_ID);
+  return !!(
+    process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON?.trim() ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim() ||
+    (CONNECTORS_HOSTNAME && CONNECTION_ID)
+  );
 }
 
 export function getDriveConfigState() {
@@ -40,6 +51,56 @@ async function getAccessToken(): Promise<string> {
 
   const data = (await response.json()) as { access_token: string };
   return data.access_token;
+}
+
+async function getServiceAccountAuth() {
+  const inlineJson = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON;
+
+  if (inlineJson) {
+    let parsed: Partial<DriveServiceAccount>;
+    try {
+      parsed = JSON.parse(inlineJson) as Partial<DriveServiceAccount>;
+    } catch {
+      throw new Error(
+        "Google Drive service account JSON is invalid. Check GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON.",
+      );
+    }
+    if (!parsed.client_email || !parsed.private_key) {
+      throw new Error(
+        "Google Drive service account JSON is missing client_email or private_key.",
+      );
+    }
+    return new google.auth.JWT({
+      email: parsed.client_email,
+      key: parsed.private_key,
+      scopes: DRIVE_SCOPES,
+    });
+  }
+
+  const credentialsFile = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (credentialsFile) {
+    const raw = await readFile(credentialsFile, "utf8");
+    let parsed: Partial<DriveServiceAccount>;
+    try {
+      parsed = JSON.parse(raw) as Partial<DriveServiceAccount>;
+    } catch {
+      throw new Error(
+        "Google Drive service account file is not valid JSON. Check GOOGLE_APPLICATION_CREDENTIALS.",
+      );
+    }
+    if (!parsed.client_email || !parsed.private_key) {
+      throw new Error(
+        "Google Drive service account file is missing client_email or private_key.",
+      );
+    }
+    return new google.auth.JWT({
+      email: parsed.client_email,
+      key: parsed.private_key,
+      scopes: DRIVE_SCOPES,
+    });
+  }
+
+  return null;
 }
 
 function getErrorStatus(err: any): number | undefined {
@@ -88,6 +149,16 @@ function getDriveClient(accessToken: string) {
   const auth = new google.auth.OAuth2();
   auth.setCredentials({ access_token: accessToken });
   return google.drive({ version: "v3", auth });
+}
+
+async function getAuthorizedDriveClient() {
+  const serviceAccountAuth = await getServiceAccountAuth();
+  if (serviceAccountAuth) {
+    return google.drive({ version: "v3", auth: serviceAccountAuth });
+  }
+
+  const accessToken = await retry("getAccessToken", () => getAccessToken());
+  return getDriveClient(accessToken);
 }
 
 export interface DriveUploadInput {
@@ -196,8 +267,7 @@ export interface DriveUploadResult {
 export async function uploadDocumentToDrive(
   input: DriveUploadInput & { title: string },
 ): Promise<DriveUploadResult> {
-  const accessToken = await retry("getAccessToken", () => getAccessToken());
-  const drive = getDriveClient(accessToken);
+  const drive = await getAuthorizedDriveClient();
 
   const fileName = sanitizeFileName(
     `${input.serviceType} – ${input.studentName} – ${input.date ?? new Date().toISOString().split("T")[0]} – ${input.documentId.slice(0, 8)}`,
@@ -242,8 +312,7 @@ export async function uploadDocumentToDrive(
 export async function searchDriveFiles(
   queryText: string,
 ): Promise<DriveSearchResult[]> {
-  const accessToken = await retry("getAccessToken", () => getAccessToken());
-  const drive = getDriveClient(accessToken);
+  const drive = await getAuthorizedDriveClient();
   const safeQuery = queryText.trim().replace(/'/g, "\\'");
   if (!safeQuery) return [];
 
@@ -277,8 +346,7 @@ export async function searchDriveFiles(
 export async function getDriveFilePreview(
   fileId: string,
 ): Promise<DrivePreviewResult> {
-  const accessToken = await retry("getAccessToken", () => getAccessToken());
-  const drive = getDriveClient(accessToken);
+  const drive = await getAuthorizedDriveClient();
 
   const metadata = await retry("getDriveFileMetadata", () =>
     drive.files.get({

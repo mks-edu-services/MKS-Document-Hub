@@ -29,7 +29,7 @@ driveRouter.post("/drive/upload", async (req, res) => {
       .status(503)
       .json({
         error:
-          "Google Drive is not configured. Connect your Google account first.",
+          "Google Drive is not configured. Set backend credentials first.",
       });
     return;
   }
@@ -59,7 +59,7 @@ driveRouter.get("/drive/search", async (req, res) => {
       .status(503)
       .json({
         error:
-          "Google Drive is not configured. Connect your Google account first.",
+          "Google Drive is not configured. Set backend credentials first.",
       });
     return;
   }
@@ -82,7 +82,7 @@ driveRouter.get("/drive/files/:fileId/preview", async (req, res) => {
       .status(503)
       .json({
         error:
-          "Google Drive is not configured. Connect your Google account first.",
+          "Google Drive is not configured. Set backend credentials first.",
       });
     return;
   }

@@ -1,0 +1,17 @@
+node_modules
+.git
+.github
+.firebase-config
+.gcloud-config
+outputs
+deploy-web.log
+deploy-web.err
+*.log
+*.tmp
+*.swp
+*.swo
+*.DS_Store
+attached_assets
+.env
+.env.*
+mks-certificate-app-cbf64-firebase-adminsdk-fbsvc-09ad142660.json
