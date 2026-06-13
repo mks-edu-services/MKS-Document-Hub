@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { isDriveConfigured, searchDriveFiles, uploadDocumentToDrive } from "../lib/googleDrive";
+import {
+  isDriveConfigured,
+  getDriveFilePreview,
+  searchDriveFiles,
+  uploadDocumentToDrive,
+} from "../lib/googleDrive";
 
 const driveRouter = Router();
 
@@ -20,13 +25,20 @@ const DriveUploadSchema = z.object({
 
 driveRouter.post("/drive/upload", async (req, res) => {
   if (!isDriveConfigured()) {
-    res.status(503).json({ error: "Google Drive is not configured. Connect your Google account first." });
+    res
+      .status(503)
+      .json({
+        error:
+          "Google Drive is not configured. Connect your Google account first.",
+      });
     return;
   }
 
   const parsed = DriveUploadSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    res
+      .status(400)
+      .json({ error: "Invalid request body", details: parsed.error.issues });
     return;
   }
 
@@ -43,7 +55,12 @@ driveRouter.post("/drive/upload", async (req, res) => {
 
 driveRouter.get("/drive/search", async (req, res) => {
   if (!isDriveConfigured()) {
-    res.status(503).json({ error: "Google Drive is not configured. Connect your Google account first." });
+    res
+      .status(503)
+      .json({
+        error:
+          "Google Drive is not configured. Connect your Google account first.",
+      });
     return;
   }
 
@@ -56,6 +73,39 @@ driveRouter.get("/drive/search", async (req, res) => {
     const status = Number(err?.response?.status ?? err?.status);
     const code = Number.isFinite(status) && status >= 400 ? status : 502;
     res.status(code).json({ error: err?.message ?? "Drive search failed" });
+  }
+});
+
+driveRouter.get("/drive/files/:fileId/preview", async (req, res) => {
+  if (!isDriveConfigured()) {
+    res
+      .status(503)
+      .json({
+        error:
+          "Google Drive is not configured. Connect your Google account first.",
+      });
+    return;
+  }
+
+  const fileId =
+    typeof req.params.fileId === "string" ? req.params.fileId.trim() : "";
+  if (!fileId) {
+    res.status(400).json({ error: "Missing file ID" });
+    return;
+  }
+
+  try {
+    const preview = await getDriveFilePreview(fileId);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    if (preview.mimeType) {
+      res.type(preview.mimeType);
+    }
+    preview.stream.pipe(res);
+  } catch (err: any) {
+    req.log.error({ err, fileId }, "Drive preview failed");
+    const status = Number(err?.response?.status ?? err?.status);
+    const code = Number.isFinite(status) && status >= 400 ? status : 502;
+    res.status(code).json({ error: err?.message ?? "Drive preview failed" });
   }
 });
 

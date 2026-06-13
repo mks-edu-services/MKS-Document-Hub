@@ -324,3 +324,33 @@ This update focused on making the Google Drive link workflow usable end to end, 
 
 - The repo still contains some intentionally untracked local files such as logs, environment config folders, and generated outputs; those were not included in the GitHub push.
 - If the UI still appears stale in the browser, a hard refresh or full app restart may be needed because old bundles can remain cached.
+
+## 14) June 2026 Update — Google Drive Preview Recovery
+
+This follow-up update focused on the case where a record already has a Google Drive share link, but the certificate preview box stays blank.
+
+### What changed
+
+- The document detail screen now derives preview URLs from any saved Drive value, not just the older `scanPreviewUrl` field.
+- Preview fallback order now prefers:
+  1. backend Drive proxy preview
+  2. Google Drive thumbnail URL
+  3. direct Drive view URL
+- The registry preview card now retries with a fallback image source and shows a clear placeholder instead of an empty blank box.
+- The Drive status banner no longer labels the same-origin API case as “Google Drive is not connected”; it now clearly says the backend API is unavailable when that is the real issue.
+
+### Backend support added
+
+- A new backend route was added to stream Drive previews:
+  - `GET /api/drive/files/:fileId/preview`
+- The route uses the configured Google Drive connector token and streams the image back to the app.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm --filter @workspace/api-server typecheck`
+
+### Expected result
+
+- Records with a saved Drive file ID or share link should now show a visible preview whenever the backend proxy is available or the shared image is publicly reachable.
+- If Drive access is still blocked, the UI should now show a fallback placeholder rather than a silent blank preview area.

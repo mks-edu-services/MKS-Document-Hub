@@ -20,7 +20,9 @@ export function getDriveConfigState() {
 
 async function getAccessToken(): Promise<string> {
   if (!CONNECTORS_HOSTNAME || !CONNECTION_ID) {
-    throw new Error("Google Drive connector not configured. Set GOOGLE_DRIVE_CONNECTION_ID.");
+    throw new Error(
+      "Google Drive connector not configured. Set GOOGLE_DRIVE_CONNECTION_ID.",
+    );
   }
 
   const url = `https://${CONNECTORS_HOSTNAME}/api/v2/connection/${CONNECTION_ID}/token/access`;
@@ -31,10 +33,12 @@ async function getAccessToken(): Promise<string> {
   const response = await fetch(url, { headers });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Failed to get Drive access token (${response.status}): ${text}`);
+    throw new Error(
+      `Failed to get Drive access token (${response.status}): ${text}`,
+    );
   }
 
-  const data = await response.json() as { access_token: string };
+  const data = (await response.json()) as { access_token: string };
   return data.access_token;
 }
 
@@ -45,10 +49,20 @@ function getErrorStatus(err: any): number | undefined {
 
 function isRetryableDriveError(err: any): boolean {
   const status = getErrorStatus(err);
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return (
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
 }
 
-async function retry<T>(label: string, task: () => Promise<T>, attempts = 2): Promise<T> {
+async function retry<T>(
+  label: string,
+  task: () => Promise<T>,
+  attempts = 2,
+): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -57,7 +71,10 @@ async function retry<T>(label: string, task: () => Promise<T>, attempts = 2): Pr
       lastError = err;
       if (attempt < attempts && isRetryableDriveError(err)) {
         const waitMs = 300 * attempt;
-        logger.warn({ label, attempt, waitMs, err }, "Retrying Google Drive request");
+        logger.warn(
+          { label, attempt, waitMs, err },
+          "Retrying Google Drive request",
+        );
         await new Promise((resolve) => setTimeout(resolve, waitMs));
         continue;
       }
@@ -95,8 +112,17 @@ export interface DriveSearchResult {
   thumbnailLink?: string;
 }
 
+export interface DrivePreviewResult {
+  mimeType?: string;
+  fileName?: string;
+  stream: NodeJS.ReadableStream;
+}
+
 function sanitizeFileName(value: string) {
-  return value.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim();
+  return value
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildHtmlContent(input: DriveUploadInput): string {
@@ -114,7 +140,7 @@ function buildHtmlContent(input: DriveUploadInput): string {
     .map(
       ([label, value]) =>
         `<tr><td style="font-weight:bold;padding:6px 12px;width:180px;background:#f0f4f8;">${label}</td>` +
-        `<td style="padding:6px 12px;">${value}</td></tr>`
+        `<td style="padding:6px 12px;">${value}</td></tr>`,
     )
     .join("");
 
@@ -125,7 +151,7 @@ function buildHtmlContent(input: DriveUploadInput): string {
           .map(
             ([k, v]) =>
               `<tr><td style="font-weight:bold;padding:6px 12px;background:#f0f4f8;">${k}</td>` +
-              `<td style="padding:6px 12px;">${v}</td></tr>`
+              `<td style="padding:6px 12px;">${v}</td></tr>`,
           )
           .join("")
       : "";
@@ -168,40 +194,44 @@ export interface DriveUploadResult {
 }
 
 export async function uploadDocumentToDrive(
-  input: DriveUploadInput & { title: string }
+  input: DriveUploadInput & { title: string },
 ): Promise<DriveUploadResult> {
   const accessToken = await retry("getAccessToken", () => getAccessToken());
   const drive = getDriveClient(accessToken);
 
   const fileName = sanitizeFileName(
-    `${input.serviceType} – ${input.studentName} – ${input.date ?? new Date().toISOString().split("T")[0]} – ${input.documentId.slice(0, 8)}`
+    `${input.serviceType} – ${input.studentName} – ${input.date ?? new Date().toISOString().split("T")[0]} – ${input.documentId.slice(0, 8)}`,
   );
   const htmlContent = buildHtmlContent(input);
 
   logger.info({ fileName }, "Uploading document to Google Drive");
 
-  const createRes = await retry("createDriveFile", async () => drive.files.create({
-    requestBody: {
-      name: fileName,
-      mimeType: "application/vnd.google-apps.document",
-      ...(FOLDER_ID ? { parents: [FOLDER_ID] } : {}),
-    },
-    media: {
-      mimeType: "text/html",
-      body: (await import("stream")).Readable.from([htmlContent]),
-    },
-    fields: "id,name",
-  }));
+  const createRes = await retry("createDriveFile", async () =>
+    drive.files.create({
+      requestBody: {
+        name: fileName,
+        mimeType: "application/vnd.google-apps.document",
+        ...(FOLDER_ID ? { parents: [FOLDER_ID] } : {}),
+      },
+      media: {
+        mimeType: "text/html",
+        body: (await import("stream")).Readable.from([htmlContent]),
+      },
+      fields: "id,name",
+    }),
+  );
 
   const fileId = createRes.data.id!;
 
-  await retry("shareDriveFile", async () => drive.permissions.create({
-    fileId,
-    requestBody: {
-      role: "reader",
-      type: "anyone",
-    },
-  }));
+  await retry("shareDriveFile", async () =>
+    drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: "reader",
+        type: "anyone",
+      },
+    }),
+  );
 
   const fileUrl = `https://docs.google.com/document/d/${fileId}/edit`;
   logger.info({ fileId, fileUrl }, "Document uploaded to Google Drive");
@@ -209,7 +239,9 @@ export async function uploadDocumentToDrive(
   return { fileId, fileUrl, fileName: createRes.data.name ?? fileName };
 }
 
-export async function searchDriveFiles(queryText: string): Promise<DriveSearchResult[]> {
+export async function searchDriveFiles(
+  queryText: string,
+): Promise<DriveSearchResult[]> {
   const accessToken = await retry("getAccessToken", () => getAccessToken());
   const drive = getDriveClient(accessToken);
   const safeQuery = queryText.trim().replace(/'/g, "\\'");
@@ -228,7 +260,7 @@ export async function searchDriveFiles(queryText: string): Promise<DriveSearchRe
       orderBy: "modifiedTime desc",
       includeItemsFromAllDrives: true,
       supportsAllDrives: true,
-    })
+    }),
   );
 
   return (response.data.files ?? [])
@@ -240,4 +272,36 @@ export async function searchDriveFiles(queryText: string): Promise<DriveSearchRe
       webViewLink: file.webViewLink ?? undefined,
       thumbnailLink: file.thumbnailLink ?? undefined,
     }));
+}
+
+export async function getDriveFilePreview(
+  fileId: string,
+): Promise<DrivePreviewResult> {
+  const accessToken = await retry("getAccessToken", () => getAccessToken());
+  const drive = getDriveClient(accessToken);
+
+  const metadata = await retry("getDriveFileMetadata", () =>
+    drive.files.get({
+      fileId,
+      fields: "id,name,mimeType",
+      supportsAllDrives: true,
+    }),
+  );
+
+  const media = await retry("getDriveFileMedia", () =>
+    drive.files.get(
+      {
+        fileId,
+        alt: "media",
+        supportsAllDrives: true,
+      },
+      { responseType: "stream" },
+    ),
+  );
+
+  return {
+    mimeType: metadata.data.mimeType ?? undefined,
+    fileName: metadata.data.name ?? undefined,
+    stream: media.data as NodeJS.ReadableStream,
+  };
 }

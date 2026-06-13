@@ -69,7 +69,27 @@ export function normalizeDriveFileUrl(value?: string): string {
   if (!input) return "";
   const driveFileId = extractDriveFileId(input);
   if (!driveFileId) return input;
-  return input.includes("drive.google.com") ? input : `https://drive.google.com/open?id=${driveFileId}`;
+  return input.includes("drive.google.com")
+    ? input
+    : `https://drive.google.com/open?id=${driveFileId}`;
+}
+
+export function buildDrivePreviewUrl(value?: string): string {
+  const driveFileId = extractDriveFileId(value);
+  if (!driveFileId) return "";
+  return `${API_BASE}/drive/files/${driveFileId}/preview`;
+}
+
+export function buildDriveThumbnailUrl(value?: string, size = 1200): string {
+  const driveFileId = extractDriveFileId(value);
+  if (!driveFileId) return "";
+  return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w${size}`;
+}
+
+export function buildDriveFullImageUrl(value?: string): string {
+  const driveFileId = extractDriveFileId(value);
+  if (!driveFileId) return "";
+  return `https://drive.google.com/uc?export=view&id=${driveFileId}`;
 }
 
 function apiHostHint() {
@@ -85,17 +105,12 @@ function apiHostHint() {
   return "";
 }
 
-function isLocalhost(hostname: string) {
-  const normalized = hostname.toLowerCase();
-  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "[::1]";
-}
-
 function isDriveApiConfigured() {
   if (typeof window === "undefined") return true;
   try {
     const resolved = new URL(API_BASE, window.location.origin);
     if (resolved.origin !== window.location.origin) return true;
-    return isLocalhost(window.location.hostname);
+    return resolved.pathname.startsWith("/api");
   } catch {
     return false;
   }
@@ -112,7 +127,10 @@ export function canUseDriveApi() {
   return isDriveApiConfigured();
 }
 
-async function readJsonResponse<T>(response: Response, context: string): Promise<T> {
+async function readJsonResponse<T>(
+  response: Response,
+  context: string,
+): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
   const text = await response.text();
   const trimmed = text.trim();
@@ -121,16 +139,24 @@ async function readJsonResponse<T>(response: Response, context: string): Promise
     return {} as T;
   }
 
-  if (contentType.includes("application/json") || trimmed.startsWith("{") || trimmed.startsWith("[")) {
+  if (
+    contentType.includes("application/json") ||
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[")
+  ) {
     try {
       return JSON.parse(trimmed) as T;
     } catch (error) {
-      throw new Error(`${context} returned invalid JSON: ${trimmed.slice(0, 200)}`);
+      throw new Error(
+        `${context} returned invalid JSON: ${trimmed.slice(0, 200)}`,
+      );
     }
   }
 
   const preview = trimmed.replace(/\s+/g, " ").slice(0, 200);
-  throw new Error(`${context} returned HTML instead of JSON.${apiHostHint()} Response preview: ${preview}`);
+  throw new Error(
+    `${context} returned HTML instead of JSON.${apiHostHint()} Response preview: ${preview}`,
+  );
 }
 
 export async function uploadDocumentToDrive(
@@ -156,7 +182,10 @@ export async function uploadDocumentToDrive(
   });
 
   if (!response.ok) {
-    const err = await readJsonResponse<{ error?: string; details?: unknown }>(response, "Drive upload");
+    const err = await readJsonResponse<{ error?: string; details?: unknown }>(
+      response,
+      "Drive upload",
+    );
     throw new Error(err.error ?? `Drive upload failed (${response.status})`);
   }
 
@@ -196,27 +225,45 @@ export async function getDriveHealth(): Promise<DriveHealthState> {
 }
 
 export function classifyDriveUploadError(error: unknown) {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
   const normalized = message.toLowerCase();
 
-  if (normalized.includes("expose_public_api_base_url") || normalized.includes("backend api server")) {
+  if (
+    normalized.includes("expose_public_api_base_url") ||
+    normalized.includes("backend api server")
+  ) {
     return { kind: "api-not-configured" as const, message };
   }
 
-  if (normalized.includes("google drive is not configured") || normalized.includes("not yet connected")) {
+  if (
+    normalized.includes("google drive is not configured") ||
+    normalized.includes("not yet connected")
+  ) {
     return { kind: "missing-connector" as const, message };
   }
 
   return { kind: "generic" as const, message };
 }
 
-export async function searchDriveFiles(query: string): Promise<DriveSearchResult[]> {
+export async function searchDriveFiles(
+  query: string,
+): Promise<DriveSearchResult[]> {
   requireDriveApiConfigured("Google Drive search");
-  const res = await fetch(`${API_BASE}/drive/search?q=${encodeURIComponent(query)}`);
+  const res = await fetch(
+    `${API_BASE}/drive/search?q=${encodeURIComponent(query)}`,
+  );
   if (!res.ok) {
     const err = await readJsonResponse<{ error?: string }>(res, "Drive search");
     throw new Error(err.error ?? `Drive search failed (${res.status})`);
   }
-  const data = (await readJsonResponse<{ results?: DriveSearchResult[] }>(res, "Drive search")) as { results?: DriveSearchResult[] };
+  const data = (await readJsonResponse<{ results?: DriveSearchResult[] }>(
+    res,
+    "Drive search",
+  )) as { results?: DriveSearchResult[] };
   return data.results ?? [];
 }
