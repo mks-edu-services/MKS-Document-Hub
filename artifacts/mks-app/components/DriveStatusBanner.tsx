@@ -1,6 +1,6 @@
 import { Feather } from "@/components/AppIcons";
 import { useColors } from "@/hooks/useColors";
-import { getDriveHealth, type DriveHealthState } from "@/lib/driveUpload";
+import { canUseDriveApi, getDriveHealth, type DriveHealthState } from "@/lib/driveUpload";
 import { useLanguage } from "@/context/LanguageContext";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -31,6 +31,22 @@ export function DriveStatusBanner({ onHealthChange }: DriveStatusBannerProps) {
   async function loadHealth() {
     setLoading(true);
     try {
+      if (!canUseDriveApi()) {
+        setHealth({
+          status: "unavailable",
+          configured: false,
+          folderConfigured: false,
+          apiConfigured: false,
+        });
+        setError(null);
+        onHealthChange?.({
+          status: "unavailable",
+          configured: false,
+          folderConfigured: false,
+          apiConfigured: false,
+        });
+        return;
+      }
       const next = await getDriveHealth();
       setHealth(next);
       setError(null);

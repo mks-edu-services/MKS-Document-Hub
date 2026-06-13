@@ -48,6 +48,14 @@ export function RegistryCertificatePreview({
   );
   const previewUnavailableLabel =
     activeLanguage === "en" ? "Preview unavailable" : "အစမ်းကြည့်မရသေးပါ";
+  const previewActionLabel =
+    activeLanguage === "en"
+      ? fullImageUrl
+        ? "Tap to open the file"
+        : "Preview unavailable"
+      : fullImageUrl
+        ? "ဖိုင်ကိုဖွင့်ကြည့်ရန်နှိပ်ပါ"
+        : "အစမ်းကြည့်မရသေးပါ";
 
   useEffect(() => {
     setImageSource(thumbnailUrl || fullImageUrl || "");
@@ -128,7 +136,7 @@ export function RegistryCertificatePreview({
                     { color: colors.mutedForeground },
                   ]}
                 >
-                  {previewUnavailableLabel}
+                  {previewActionLabel || previewUnavailableLabel}
                 </Text>
               </View>
             )}

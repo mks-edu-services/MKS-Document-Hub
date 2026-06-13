@@ -623,7 +623,7 @@ export default function DocumentDetailScreen() {
         {scanThumbUrl ? (
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => scanFullUrl && Linking.openURL(scanFullUrl)}
+            onPress={() => Linking.openURL(document.driveFileUrl || document.scanFileUrl || scanFullUrl || scanThumbUrl)}
             style={styles.scanPreviewWrap}
           >
             <Text

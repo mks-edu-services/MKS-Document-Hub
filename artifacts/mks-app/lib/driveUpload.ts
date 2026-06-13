@@ -75,6 +75,7 @@ export function normalizeDriveFileUrl(value?: string): string {
 }
 
 export function buildDrivePreviewUrl(value?: string): string {
+  if (!isDriveApiConfigured()) return "";
   const driveFileId = extractDriveFileId(value);
   if (!driveFileId) return "";
   return `${API_BASE}/drive/files/${driveFileId}/preview`;
@@ -108,12 +109,16 @@ function apiHostHint() {
 function isDriveApiConfigured() {
   if (typeof window === "undefined") return true;
   try {
-    const resolved = new URL(API_BASE, window.location.origin);
-    if (resolved.origin !== window.location.origin) return true;
-    return resolved.pathname.startsWith("/api");
+    if (process.env.EXPO_PUBLIC_API_BASE_URL) return true;
+    return isLocalhost(window.location.hostname);
   } catch {
     return false;
   }
+}
+
+function isLocalhost(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "[::1]";
 }
 
 function requireDriveApiConfigured(context: string) {
