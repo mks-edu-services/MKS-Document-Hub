@@ -93,6 +93,12 @@ export function buildDriveFullImageUrl(value?: string): string {
   return `https://drive.google.com/uc?export=view&id=${driveFileId}`;
 }
 
+export function buildDriveDownloadUrl(value?: string): string {
+  const driveFileId = extractDriveFileId(value);
+  if (!driveFileId) return "";
+  return `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+}
+
 function apiHostHint() {
   if (typeof window === "undefined") return "";
   try {

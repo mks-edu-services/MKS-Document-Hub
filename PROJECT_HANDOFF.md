@@ -364,8 +364,10 @@ This follow-up adjustment keeps the hosted web app from pretending the same-orig
 - `EXPO_PUBLIC_API_BASE_URL` is now treated as the real signal for Drive backend availability in the web app.
 - The Drive status banner now short-circuits when no explicit backend URL is set, instead of fetching `/api/drive/health` from the Firebase Hosting site and receiving HTML.
 - The document scan preview click target now falls back to opening the saved Drive link directly, so the user still has a working path to the file even when the preview proxy is unavailable.
+- The scan section now shows explicit `Open Drive` and `Download` actions whenever a Drive link is saved, so users can still view or retrieve the file without needing inline image embedding.
 
 ### Result
 
 - The UI no longer shows the confusing HTML-in-JSON health error on the Firebase-hosted frontend.
 - Drive preview still works best when a real backend API host is deployed and wired through `EXPO_PUBLIC_API_BASE_URL`.
+- Without that backend, the app now degrades gracefully to Drive-open/download actions instead of a broken preview box.

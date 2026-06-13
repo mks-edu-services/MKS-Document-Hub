@@ -33,6 +33,7 @@ import {
 import { deleteDocument, getDocument, updateDocument } from "@/lib/firestore";
 import {
   buildDriveFullImageUrl,
+  buildDriveDownloadUrl,
   buildDrivePreviewUrl,
   buildDriveThumbnailUrl,
   classifyDriveUploadError,
@@ -411,6 +412,11 @@ export default function DocumentDetailScreen() {
     document.scanFileUrl ||
     document.driveFileUrl ||
     scanThumbUrl;
+  const scanDownloadUrl =
+    buildDriveDownloadUrl(preferredScanSource) ||
+    document.scanFileUrl ||
+    document.driveFileUrl ||
+    "";
 
   return (
     <ScrollView
@@ -621,53 +627,127 @@ export default function DocumentDetailScreen() {
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         {scanThumbUrl ? (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() => Linking.openURL(document.driveFileUrl || document.scanFileUrl || scanFullUrl || scanThumbUrl)}
-            style={styles.scanPreviewWrap}
-          >
-            <Text
-              style={[
-                styles.scanPreviewLabel,
-                { color: colors.mutedForeground },
-              ]}
+          <>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() =>
+                Linking.openURL(
+                  document.driveFileUrl || document.scanFileUrl || scanFullUrl || scanThumbUrl,
+                )
+              }
+              style={styles.scanPreviewWrap}
             >
-              {t("preview")}
-            </Text>
-            <View
-              style={[
-                styles.scanPreviewBox,
-                { backgroundColor: colors.muted, borderColor: colors.border },
-              ]}
-            >
-              <Image
-                source={{ uri: scanThumbUrl }}
-                style={styles.scanPreviewImage}
-                resizeMode="cover"
-              />
-              <Text
-                style={[styles.scanPreviewName, { color: colors.foreground }]}
-                numberOfLines={2}
-              >
-                {document.scanFileName ??
-                  document.scanFileUrl ??
-                  document.driveFileUrl}
-              </Text>
               <Text
                 style={[
-                  styles.scanPreviewUrl,
+                  styles.scanPreviewLabel,
                   { color: colors.mutedForeground },
                 ]}
-                numberOfLines={1}
               >
-                {document.scanFileUrl ?? document.driveFileUrl}
+                {t("preview")}
               </Text>
-            </View>
-          </TouchableOpacity>
+              <View
+                style={[
+                  styles.scanPreviewBox,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <Image
+                  source={{ uri: scanThumbUrl }}
+                  style={styles.scanPreviewImage}
+                  resizeMode="cover"
+                />
+                <Text
+                  style={[styles.scanPreviewName, { color: colors.foreground }]}
+                  numberOfLines={2}
+                >
+                  {document.scanFileName ??
+                    document.scanFileUrl ??
+                    document.driveFileUrl}
+                </Text>
+                <Text
+                  style={[
+                    styles.scanPreviewUrl,
+                    { color: colors.mutedForeground },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {document.scanFileUrl ?? document.driveFileUrl}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            {document.driveFileUrl || document.scanFileUrl ? (
+              <View style={styles.scanActionRow}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() =>
+                    Linking.openURL(
+                      document.driveFileUrl || document.scanFileUrl || "",
+                    )
+                  }
+                  style={[
+                    styles.scanActionBtn,
+                    { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Text style={styles.scanActionBtnText}>
+                    {language === "en" ? "Open Drive" : "Drive ဖိုင်ဖွင့်ရန်"}
+                  </Text>
+                </TouchableOpacity>
+                {scanDownloadUrl ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => Linking.openURL(scanDownloadUrl)}
+                    style={[
+                      styles.scanActionBtn,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.scanActionBtnText,
+                        { color: colors.primary },
+                      ]}
+                    >
+                      {language === "en" ? "Download" : "ဒေါင်းလုပ်"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+          </>
         ) : (
-          <Text style={[styles.scanEmpty, { color: colors.mutedForeground }]}>
-            {t("scanNotLinked")}
-          </Text>
+          <View style={styles.scanEmptyWrap}>
+            <Text style={[styles.scanEmpty, { color: colors.mutedForeground }]}>
+              {t("scanNotLinked")}
+            </Text>
+            {document.driveFileUrl || document.scanFileUrl ? (
+              <View style={styles.scanActionRow}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => Linking.openURL(document.driveFileUrl || document.scanFileUrl || "")}
+                  style={[styles.scanActionBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Text style={styles.scanActionBtnText}>
+                    {language === "en" ? "Open Drive" : "Drive ဖိုင်ဖွင့်ရန်"}
+                  </Text>
+                </TouchableOpacity>
+                {scanDownloadUrl ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => Linking.openURL(scanDownloadUrl)}
+                    style={[
+                      styles.scanActionBtn,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[styles.scanActionBtnText, { color: colors.primary }]}>
+                      {language === "en" ? "Download" : "ဒေါင်းလုပ်"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
         )}
 
         <View style={styles.scanSearchBox}>
@@ -1061,6 +1141,17 @@ const styles = StyleSheet.create({
   scanPreviewName: { fontSize: 14, fontWeight: "700" },
   scanPreviewUrl: { fontSize: 11 },
   scanEmpty: { fontSize: 13 },
+  scanEmptyWrap: { gap: 10 },
+  scanActionRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  scanActionBtn: {
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scanActionBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   scanSearchBox: { flexDirection: "row", gap: 8, marginTop: 12 },
   scanInput: {
     flex: 1,

@@ -112,12 +112,12 @@ export function DriveStatusBanner({ onHealthChange }: DriveStatusBannerProps) {
 
     if (!health.apiConfigured) {
       return {
-        tone: "warning" as BannerTone,
-        icon: "alert-triangle" as const,
-        title: text("Backend API မရနိုင်သေးပါ", "Backend API unavailable"),
+        tone: "info" as BannerTone,
+        icon: "info" as const,
+        title: text("Live preview service မချိတ်ရသေးပါ", "Live preview service not connected"),
         body: text(
-          "Backend API URL မသတ်မှတ်ရသေးပါ။ Google Drive status ကို စစ်မရသေးပါ။",
-          "The backend API URL is not configured yet, so Drive status cannot be checked.",
+          "Live preview service မချိတ်ရသေးပါ။ Drive link ကနေဖွင့် / download လုပ်လို့ရပြီး inline preview အတွက် backend API URL ထပ်သတ်မှတ်ရပါမယ်။",
+          "The live preview service is not connected yet. You can still open or download the Drive file from the saved link below, and inline preview needs a backend API URL.",
         ),
       };
     }
