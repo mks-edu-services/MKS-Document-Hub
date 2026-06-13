@@ -49,3 +49,6 @@ Thumbs.db
 .local/
 .config/
 .env
+
+# Local Google service account key used only for deployment
+mks-certificate-app-cbf64-firebase-adminsdk-fbsvc-09ad142660.json

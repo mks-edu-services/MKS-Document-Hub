@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/functions.mjs",
   "scripts": {
     "dev": "node ./scripts/dev.cjs",
     "build": "node ./build.mjs",

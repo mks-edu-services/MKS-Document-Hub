@@ -31,6 +31,18 @@ Deploy `artifacts/api-server` to any Node host you control, or build the provide
 
 - `EXPO_PUBLIC_API_BASE_URL=https://your-api-host/api`
 
+If you are working from this desktop and want the browser to talk to the local API server instead, use:
+
+- `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api`
+
+The current workspace also installs a user-level startup entry that launches `scripts/start-local-api.ps1` so the API comes back after logon.
+
+If you want the repo to handle backend + web together, run:
+
+```bash
+pnpm run deploy:api
+```
+
 The web app uses this base URL for Drive upload requests, health checks, and inline preview.
 The backend exposes:
 

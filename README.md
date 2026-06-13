@@ -33,6 +33,7 @@ pnpm run deploy:web
 - `pnpm --filter @workspace/mks-app run export:web` — export the web build
 - `pnpm --filter @workspace/mks-app run serve` — serve the exported web app
 - `pnpm --filter @workspace/api-server run dev` — build and start the API server
+- `pnpm run deploy:api` — deploy the API server to the live Google Cloud host and repoint web env
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client and Zod types
 - `pnpm --filter @workspace/db run push` — apply database schema changes during development
 - `pnpm run typecheck` — run TypeScript checks across the workspace
@@ -45,9 +46,11 @@ The web app is designed to run from Firebase Hosting, but the API server still n
 
 - Frontend hosting target: `https://mksedudoc.web.app`
 - API server base URL: set `EXPO_PUBLIC_API_BASE_URL` to the hosted API prefix, for example `https://api.example.com/api`
+- For this workspace, the deployed web app currently points to `http://localhost:8080/api` so the browser can talk to the local API server on this machine
 - If you keep the frontend and backend on the same origin, the app will still fall back to `/api`
 - Recommended backend auth: a Google Drive service account, shared to the target Drive folder, using `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON` or `GOOGLE_APPLICATION_CREDENTIALS`
-- The backend can be deployed from `Dockerfile.api-server` on any Node host
+- The backend can be deployed from `Dockerfile.api-server` on any Node host, or with `pnpm run deploy:api`
+- A user-level startup entry launches `scripts/start-local-api.ps1` so the local API comes back after sign-in
 - To pin a specific backend host during Firebase web deploys, run `pnpm run deploy:web -- --api-base=https://your-api-host/api`
 - The older Replit connector path still exists as a fallback, but it is no longer required
 

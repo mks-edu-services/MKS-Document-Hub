@@ -5,6 +5,7 @@
   "scripts": {
     "preinstall": "node ./scripts/preinstall.cjs",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "deploy:api": "node ./scripts/deploy-api.cjs",
     "deploy:web": "node ./scripts/deploy-web.cjs",
     "drive:template": "node ./scripts/drive-link-mapping.cjs export",
     "drive:import": "node ./scripts/drive-link-mapping.cjs import",
