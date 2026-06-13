@@ -258,6 +258,31 @@ This update focused on making the Google Drive link workflow usable end to end, 
 - The edit/detail flow now shows a manual Google Drive link input so editors can paste a copied Drive URL directly and save it back to Firestore.
 - The document edit screen now also shows the tracking block again, including:
   - `ဖန်တီးသည့်နေ့`
+
+## 14) June 2026 Update — Registry Detail Crash Fix
+
+The `/document/[id]` detail page was throwing the global error boundary on some records. The page now normalizes Firestore data before rendering so older or partially populated records do not crash the app.
+
+### What was fixed
+
+- Route params are normalized so `id` is always treated as a single string.
+- Loaded documents are sanitized before render:
+  - invalid or missing `status` values fall back to `draft`
+  - missing `fields` values fall back to an empty object
+  - non-string field values are coerced to strings
+  - Drive and scan metadata are normalized before they are used by the UI
+- Registry extra-fields rendering now safely checks `document.fields ?? {}` before calling `Object.keys()` / `Object.entries()`.
+
+### Validation
+
+- Typecheck passed for `artifacts/mks-app`.
+- Web app was redeployed to Firebase Hosting after the fix.
+- Latest deployed release: `1781384817543000`
+
+### Why this matters
+
+- This prevents the `Something went wrong / Please reload the app to continue` screen from appearing just because a record has older or imperfect Firestore data.
+- It keeps the registry detail screen usable even when Drive fields or dynamic form fields are incomplete.
   - `နောက်ဆုံးပြင်သည့်နေ့`
   - `Google Drive ချိတ်ဆက်မှု`
   - `Drive အမှား`

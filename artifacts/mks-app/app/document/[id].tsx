@@ -54,6 +54,65 @@ const statusConfig: Record<
   archived: { label: "Archived", color: "#6b7c93", bg: "#f0f4f8" },
 };
 
+function normalizeDocument(document: Document | null): Document | null {
+  if (!document) return null;
+
+  const status: DocumentStatus =
+    document.status === "active" ||
+    document.status === "draft" ||
+    document.status === "archived"
+      ? document.status
+      : "draft";
+
+  const fields =
+    document.fields && typeof document.fields === "object" && !Array.isArray(document.fields)
+      ? document.fields
+      : {};
+  const normalizedFields = Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [key, value == null ? "" : String(value)]),
+  ) as Record<string, string>;
+
+  return {
+    ...document,
+    status,
+    title: document.title ?? "",
+    templateId: document.templateId ?? "",
+    templateName: document.templateName ?? "",
+    serviceType: document.serviceType ?? "",
+    fields: normalizedFields,
+    studentName: document.studentName ?? "",
+    school: document.school ?? "",
+    academicYear: document.academicYear ?? "",
+    agent: document.agent ?? "",
+    date: document.date ?? "",
+    driveFileId: document.driveFileId ? String(document.driveFileId) : undefined,
+    driveFileUrl: document.driveFileUrl ? String(document.driveFileUrl) : undefined,
+    driveFileName: document.driveFileName ? String(document.driveFileName) : undefined,
+    driveFolderLink: document.driveFolderLink ? String(document.driveFolderLink) : undefined,
+    driveFolderPath: document.driveFolderPath ? String(document.driveFolderPath) : undefined,
+    driveMatchMethod: document.driveMatchMethod ? String(document.driveMatchMethod) : undefined,
+    driveMatchConfidence:
+      typeof document.driveMatchConfidence === "number"
+        ? document.driveMatchConfidence
+        : document.driveMatchConfidence
+          ? Number(document.driveMatchConfidence)
+          : undefined,
+    scanFileId: document.scanFileId ? String(document.scanFileId) : undefined,
+    scanFileName: document.scanFileName ? String(document.scanFileName) : undefined,
+    scanFileUrl: document.scanFileUrl ? String(document.scanFileUrl) : undefined,
+    scanPreviewUrl: document.scanPreviewUrl ? String(document.scanPreviewUrl) : undefined,
+    scanSearchKey: document.scanSearchKey ? String(document.scanSearchKey) : undefined,
+    driveSyncStatus: document.driveSyncStatus,
+    driveSyncError: document.driveSyncError ? String(document.driveSyncError) : undefined,
+    driveSyncedAt: document.driveSyncedAt ? String(document.driveSyncedAt) : undefined,
+    notes: document.notes ? String(document.notes) : undefined,
+    sr: document.sr ? String(document.sr) : undefined,
+    createdBy: document.createdBy ?? "",
+    createdAt: document.createdAt ?? "",
+    updatedAt: document.updatedAt ?? "",
+  };
+}
+
 function InfoRow({
   icon,
   label,
@@ -98,7 +157,8 @@ const ir = StyleSheet.create({
 export default function DocumentDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const { language, t, formatDate, translateServiceType, translateStatus } =
     useLanguage();
@@ -122,7 +182,7 @@ export default function DocumentDetailScreen() {
     if (id) {
       getDocument(id)
         .then((doc) => {
-          setDocument(doc);
+          setDocument(normalizeDocument(doc));
           setLoading(false);
         })
         .catch(() => setLoading(false));
@@ -358,7 +418,7 @@ export default function DocumentDetailScreen() {
   }
 
   const status = {
-    ...statusConfig[document.status],
+    ...(statusConfig[document.status] ?? statusConfig.draft),
     label: translateStatus(document.status),
   };
   const createdDate = formatDate(document.createdAt, {
@@ -896,7 +956,7 @@ export default function DocumentDetailScreen() {
           onPressThumbnail={() => setPreviewVisible(true)}
           language={language}
         />
-      ) : Object.keys(document.fields).length > 0 ? (
+      ) : Object.keys(document.fields ?? {}).length > 0 ? (
         <View
           style={[
             styles.card,
@@ -907,7 +967,7 @@ export default function DocumentDetailScreen() {
             {t("additionalFields")}
           </Text>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          {Object.entries(document.fields).map(([key, value]) => (
+          {Object.entries(document.fields ?? {}).map(([key, value]) => (
             <View key={key} style={styles.fieldRow}>
               <Text
                 style={[styles.fieldLabel, { color: colors.mutedForeground }]}
