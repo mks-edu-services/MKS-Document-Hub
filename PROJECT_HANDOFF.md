@@ -319,6 +319,21 @@ The live backend deploy path is currently blocked by the GCP project billing/rea
 - Existing records that point to private Drive files should open directly in the browser for any user after the files are public.
 - The current app can then use the direct Drive links and preview thumbnails without hitting the access-denied screen.
 - The backend deploy path still requires Cloud Functions write access on the Firebase project, so the live preview proxy remains optional rather than required for this fix.
+
+## 17) June 2026 Update — Preview Layout & Viewer Fit
+
+The certificate detail page preview was refined so the information block and thumbnail feel balanced, and the viewer can better fit larger scan images.
+
+### What changed
+
+- The registry preview card now gives the info column and the thumbnail column roughly half of the available width on larger screens.
+- The thumbnail area is larger and no longer squeezed into a tiny side panel.
+- The full preview modal now tries multiple saved image URLs and uses a scrollable viewport so oversized scans can be panned instead of being clipped.
+
+### Notes
+
+- The browser may still show older cached app assets until it refreshes the latest hosted bundle.
+- The deployed web build has already been updated with the new layout and viewer behavior.
   - `နောက်ဆုံးပြင်သည့်နေ့`
   - `Google Drive ချိတ်ဆက်မှု`
   - `Drive အမှား`
@@ -449,3 +464,24 @@ This update removes the dependency on Replit connectors for the backend path whe
 - The UI no longer shows the confusing HTML-in-JSON health error on the Firebase-hosted frontend.
 - Drive preview still works best when a real backend API host is deployed and wired through `EXPO_PUBLIC_API_BASE_URL`.
 - Without that backend, the app now degrades gracefully to Drive-open/download actions instead of a broken preview box.
+
+## 17) June 2026 Update — Detail Screen Crash Fix & Preview Verification
+
+This follow-up fixed the React crash that was showing as `Something went wrong` when opening a document detail page.
+
+### What changed
+
+- The preview size effect in `artifacts/mks-app/app/document/[id].tsx` was moved above the early return paths so the hook order stays stable on first render and after the document loads.
+- The document detail page keeps the larger preview layout and the scrollable image modal.
+- The registry preview card still uses the wider half-and-half sheet layout so the image column is visibly larger on desktop.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+- Fresh browser loads now open the record detail page successfully.
+- The preview modal now opens and shows the full certificate image with scrollable overflow when the image is larger than the viewport.
+
+### Note
+
+- If an older browser tab still shows the crash screen, it is likely holding a cached bundle from before the fix. A fresh load or hard refresh should pick up the new web bundle released in `1781452056009000`.

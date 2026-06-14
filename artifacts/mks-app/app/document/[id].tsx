@@ -16,6 +16,7 @@ import {
   Pressable,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RoleGate } from "@/components/RoleGate";
@@ -157,6 +158,7 @@ const ir = StyleSheet.create({
 export default function DocumentDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
@@ -173,7 +175,12 @@ export default function DocumentDetailScreen() {
     { id: string; name: string; webViewLink?: string; thumbnailLink?: string }[]
   >([]);
   const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState("");
+  const [previewImageSources, setPreviewImageSources] = useState<string[]>([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
+  const [previewImageSize, setPreviewImageSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [driveHealth, setDriveHealth] = useState<DriveHealthState | null>(null);
   const [driveLinkDraft, setDriveLinkDraft] = useState("");
   const [savingDriveLink, setSavingDriveLink] = useState(false);
@@ -398,6 +405,29 @@ export default function DocumentDetailScreen() {
     }
   }
 
+  const previewImageUrl = previewImageSources[previewImageIndex] ?? "";
+  const previewPanelWidth = Math.max(Math.min(windowWidth - 64, 1040), 320);
+  const previewPanelHeight = Math.max(Math.min(windowHeight * 0.78, 760), 320);
+
+  useEffect(() => {
+    if (!previewVisible || !previewImageUrl) return;
+    let cancelled = false;
+    Image.getSize(
+      previewImageUrl,
+      (width, height) => {
+        if (cancelled) return;
+        setPreviewImageSize({ width, height });
+      },
+      () => {
+        if (cancelled) return;
+        setPreviewImageSize(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [previewImageUrl, previewVisible]);
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -479,7 +509,22 @@ export default function DocumentDetailScreen() {
     document.driveFileUrl ||
     "";
   function handleOpenPreview() {
-    setPreviewImageUrl(scanFullUrl);
+    if (!document) return;
+    const currentDocument = document;
+    const sources = Array.from(
+      new Set(
+        [
+          scanThumbUrl,
+          scanFullUrl,
+          scanDownloadUrl,
+          currentDocument.scanFileUrl,
+          currentDocument.driveFileUrl,
+        ].filter((value): value is string => !!value),
+      ),
+    );
+    setPreviewImageSources(sources);
+    setPreviewImageIndex(0);
+    setPreviewImageSize(null);
     setPreviewVisible(true);
   }
 
@@ -995,12 +1040,22 @@ export default function DocumentDetailScreen() {
         visible={previewVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setPreviewVisible(false)}
+        onRequestClose={() => {
+          setPreviewVisible(false);
+          setPreviewImageSources([]);
+          setPreviewImageIndex(0);
+          setPreviewImageSize(null);
+        }}
       >
         <View style={styles.modalOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setPreviewVisible(false)}
+            onPress={() => {
+              setPreviewVisible(false);
+              setPreviewImageSources([]);
+              setPreviewImageIndex(0);
+              setPreviewImageSize(null);
+            }}
           />
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
@@ -1008,7 +1063,12 @@ export default function DocumentDetailScreen() {
                 {t("preview")}
               </Text>
               <TouchableOpacity
-                onPress={() => setPreviewVisible(false)}
+                onPress={() => {
+                  setPreviewVisible(false);
+                  setPreviewImageSources([]);
+                  setPreviewImageIndex(0);
+                  setPreviewImageSize(null);
+                }}
                 style={[
                   styles.modalCloseBtn,
                   { backgroundColor: colors.muted },
@@ -1018,12 +1078,47 @@ export default function DocumentDetailScreen() {
               </TouchableOpacity>
             </View>
             {previewImageUrl ? (
-              <Image
-                source={{ uri: previewImageUrl }}
-                style={styles.modalImage}
-                resizeMode="contain"
-                onError={() => setPreviewImageUrl("")}
-              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator
+                style={[
+                  styles.modalScroll,
+                  { maxWidth: previewPanelWidth, maxHeight: previewPanelHeight },
+                ]}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <ScrollView
+                  showsVerticalScrollIndicator
+                  style={styles.modalScrollInner}
+                  contentContainerStyle={styles.modalScrollInnerContent}
+                >
+                  <Image
+                    source={{ uri: previewImageUrl }}
+                    style={[
+                      styles.modalImage,
+                      {
+                        width: previewImageSize
+                          ? Math.max(previewImageSize.width, previewPanelWidth)
+                          : previewPanelWidth,
+                        height: previewImageSize
+                          ? Math.max(previewImageSize.height, previewPanelHeight)
+                          : previewPanelHeight,
+                      },
+                    ]}
+                    resizeMode="contain"
+                    onError={() => {
+                      if (previewImageIndex + 1 < previewImageSources.length) {
+                        setPreviewImageIndex((index) => index + 1);
+                        setPreviewImageSize(null);
+                        return;
+                      }
+                      setPreviewImageSources([]);
+                      setPreviewImageIndex(0);
+                      setPreviewImageSize(null);
+                    }}
+                  />
+                </ScrollView>
+              </ScrollView>
             ) : (
               <View style={styles.modalFallbackBox}>
                 <Text
@@ -1276,9 +1371,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalScrollInner: {
+    flexGrow: 1,
+  },
+  modalScrollInnerContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   modalImage: {
-    width: "100%",
-    minHeight: 420,
     borderRadius: 12,
     backgroundColor: "#f3f4f6",
   },
