@@ -485,3 +485,25 @@ This follow-up fixed the React crash that was showing as `Something went wrong` 
 ### Note
 
 - If an older browser tab still shows the crash screen, it is likely holding a cached bundle from before the fix. A fresh load or hard refresh should pick up the new web bundle released in `1781452056009000`.
+
+## 18) June 2026 Update — Preview-First Layout Cleanup
+
+This follow-up reorganized the document detail page so the registry fields and preview image appear first, with the supporting drive and tracking sections pushed below.
+
+### What changed
+
+- The registry preview card now renders near the top of the detail page, immediately after the edit action.
+- A download button was added under the preview image inside the registry preview card.
+- The scan section no longer shows the duplicated inline preview image or the old preview/download action buttons.
+- The remaining scan area is now focused on search and attachment only.
+- Google Drive status, manual link editing, document details, and tracking remain visible below the preview-first area.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+- Fresh browser verification confirmed the updated top preview layout and the removal of the duplicate scan preview controls.
+
+### Note
+
+- The latest deployed hosting release for this layout cleanup is `1781453689957000`.

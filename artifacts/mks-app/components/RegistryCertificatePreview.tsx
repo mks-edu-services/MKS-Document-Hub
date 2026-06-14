@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import {
   Image,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -25,6 +27,7 @@ type Props = {
   values: Record<string, string>;
   thumbnailUrl?: string;
   fullImageUrl?: string;
+  downloadUrl?: string;
   onPressThumbnail?: () => void;
   language?: LanguageCode;
 };
@@ -35,6 +38,7 @@ export function RegistryCertificatePreview({
   values,
   thumbnailUrl,
   fullImageUrl,
+  downloadUrl,
   onPressThumbnail,
   language,
 }: Props) {
@@ -141,6 +145,20 @@ export function RegistryCertificatePreview({
               </View>
             )}
           </Pressable>
+          {downloadUrl ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL(downloadUrl)}
+              style={[
+                styles.downloadBtn,
+                { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+            >
+              <Text style={styles.downloadBtnText}>
+                {activeLanguage === "en" ? "Download" : "ဒေါင်းလုပ်"}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
           <Text style={[styles.thumbHint, { color: colors.mutedForeground }]}>
             Tap the thumbnail to view full image
           </Text>
@@ -178,6 +196,16 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   thumbImage: { width: "100%", height: "100%", borderRadius: 8 },
+  downloadBtn: {
+    alignSelf: "stretch",
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  downloadBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   thumbPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   thumbPlaceholderText: { fontSize: 13, fontWeight: "700" },
   thumbHint: { fontSize: 11, textAlign: "center" },

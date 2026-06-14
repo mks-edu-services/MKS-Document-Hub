@@ -581,6 +581,19 @@ export default function DocumentDetailScreen() {
         </TouchableOpacity>
       </RoleGate>
 
+      {showRegistryTable ? (
+        <RegistryCertificatePreview
+          title={`${registryTitle}`}
+          fields={registryFields}
+          values={registryValues}
+          thumbnailUrl={scanThumbUrl}
+          fullImageUrl={scanFullUrl}
+          downloadUrl={scanDownloadUrl}
+          onPressThumbnail={handleOpenPreview}
+          language={language}
+        />
+      ) : null}
+
       <DriveStatusBanner onHealthChange={setDriveHealth} />
 
       <View
@@ -736,121 +749,13 @@ export default function DocumentDetailScreen() {
           {t("scanCertificate")}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        {scanThumbUrl ? (
-          <>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handleOpenPreview}
-              style={styles.scanPreviewWrap}
-            >
-              <Text
-                style={[
-                  styles.scanPreviewLabel,
-                  { color: colors.mutedForeground },
-                ]}
-              >
-                {t("preview")}
-              </Text>
-              <View
-                style={[
-                  styles.scanPreviewBox,
-                  { backgroundColor: colors.muted, borderColor: colors.border },
-                ]}
-              >
-                <Image
-                  source={{ uri: scanThumbUrl }}
-                  style={styles.scanPreviewImage}
-                  resizeMode="cover"
-                />
-                <Text
-                  style={[styles.scanPreviewName, { color: colors.foreground }]}
-                  numberOfLines={2}
-                >
-                  {document.scanFileName ??
-                    document.scanFileUrl ??
-                    document.driveFileUrl}
-                </Text>
-                <Text
-                  style={[
-                    styles.scanPreviewUrl,
-                    { color: colors.mutedForeground },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {document.scanFileUrl ?? document.driveFileUrl}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            {document.driveFileUrl || document.scanFileUrl ? (
-              <View style={styles.scanActionRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleOpenPreview}
-                  style={[
-                    styles.scanActionBtn,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Text style={styles.scanActionBtnText}>
-                    {language === "en" ? "Open Preview" : "ကြိုကြည့်ရန်"}
-                  </Text>
-                </TouchableOpacity>
-                {scanDownloadUrl ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => Linking.openURL(scanDownloadUrl)}
-                    style={[
-                      styles.scanActionBtn,
-                      { backgroundColor: colors.card, borderColor: colors.border },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.scanActionBtnText,
-                        { color: colors.primary },
-                      ]}
-                    >
-                      {language === "en" ? "Download" : "ဒေါင်းလုပ်"}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : null}
-          </>
-        ) : (
+        {!document.scanFileUrl && !document.driveFileUrl ? (
           <View style={styles.scanEmptyWrap}>
             <Text style={[styles.scanEmpty, { color: colors.mutedForeground }]}>
               {t("scanNotLinked")}
             </Text>
-            {document.driveFileUrl || document.scanFileUrl ? (
-              <View style={styles.scanActionRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleOpenPreview}
-                  style={[styles.scanActionBtn, { backgroundColor: colors.primary }]}
-                >
-                  <Text style={styles.scanActionBtnText}>
-                    {language === "en" ? "Open Preview" : "ကြိုကြည့်ရန်"}
-                  </Text>
-                </TouchableOpacity>
-                {scanDownloadUrl ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => Linking.openURL(scanDownloadUrl)}
-                    style={[
-                      styles.scanActionBtn,
-                      { backgroundColor: colors.card, borderColor: colors.border },
-                    ]}
-                  >
-                    <Text style={[styles.scanActionBtnText, { color: colors.primary }]}>
-                      {language === "en" ? "Download" : "ဒေါင်းလုပ်"}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : null}
           </View>
-        )}
+        ) : null}
 
         <View style={styles.scanSearchBox}>
           <TextInput
@@ -983,17 +888,7 @@ export default function DocumentDetailScreen() {
         />
       </View>
 
-      {showRegistryTable ? (
-        <RegistryCertificatePreview
-          title={`${registryTitle}`}
-          fields={registryFields}
-          values={registryValues}
-          thumbnailUrl={scanThumbUrl}
-          fullImageUrl={scanFullUrl}
-          onPressThumbnail={handleOpenPreview}
-          language={language}
-        />
-      ) : Object.keys(document.fields ?? {}).length > 0 ? (
+      {Object.keys(document.fields ?? {}).length > 0 && !showRegistryTable ? (
         <View
           style={[
             styles.card,
