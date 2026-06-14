@@ -303,6 +303,22 @@ The document detail page had a React hook ordering bug that only appeared after 
 
 - Google Drive image requests may still be blocked by the browser for some direct `drive.google.com` URLs.
 - That is a preview/access issue, not the React crash that was breaking page navigation.
+
+## 16) June 2026 Update — Drive Access Bulk Publicization Plan
+
+The live backend deploy path is currently blocked by the GCP project billing/read-access error, so the next practical fix is to make the already-linked Drive files publicly readable when that is acceptable for the record set.
+
+### Added tooling
+
+- `scripts/publicize-drive-files.cjs` can read Firestore document records, extract all saved Drive file IDs, and add `reader` permission for `anyone`.
+- The script is idempotent enough to re-run on the same records when new files are added later.
+- `scripts/deploy-api.cjs` now targets the correct Firebase project: `mks-certificate-app-cbf64`.
+
+### Expected effect
+
+- Existing records that point to private Drive files should open directly in the browser for any user after the files are public.
+- The current app can then use the direct Drive links and preview thumbnails without hitting the access-denied screen.
+- The backend deploy path still requires Cloud Functions write access on the Firebase project, so the live preview proxy remains optional rather than required for this fix.
   - `နောက်ဆုံးပြင်သည့်နေ့`
   - `Google Drive ချိတ်ဆက်မှု`
   - `Drive အမှား`

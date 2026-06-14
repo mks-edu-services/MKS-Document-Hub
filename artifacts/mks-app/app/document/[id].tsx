@@ -695,11 +695,7 @@ export default function DocumentDetailScreen() {
           <>
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() =>
-                Linking.openURL(
-                  document.driveFileUrl || document.scanFileUrl || scanFullUrl || scanThumbUrl,
-                )
-              }
+              onPress={handleOpenPreview}
               style={styles.scanPreviewWrap}
             >
               <Text
@@ -744,18 +740,14 @@ export default function DocumentDetailScreen() {
               <View style={styles.scanActionRow}>
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() =>
-                    Linking.openURL(
-                      document.driveFileUrl || document.scanFileUrl || "",
-                    )
-                  }
+                  onPress={handleOpenPreview}
                   style={[
                     styles.scanActionBtn,
                     { backgroundColor: colors.primary },
                   ]}
                 >
                   <Text style={styles.scanActionBtnText}>
-                    {language === "en" ? "Open Drive" : "Drive ဖိုင်ဖွင့်ရန်"}
+                    {language === "en" ? "Open Preview" : "ကြိုကြည့်ရန်"}
                   </Text>
                 </TouchableOpacity>
                 {scanDownloadUrl ? (
@@ -789,11 +781,11 @@ export default function DocumentDetailScreen() {
               <View style={styles.scanActionRow}>
                 <TouchableOpacity
                   activeOpacity={0.85}
-                  onPress={() => Linking.openURL(document.driveFileUrl || document.scanFileUrl || "")}
+                  onPress={handleOpenPreview}
                   style={[styles.scanActionBtn, { backgroundColor: colors.primary }]}
                 >
                   <Text style={styles.scanActionBtnText}>
-                    {language === "en" ? "Open Drive" : "Drive ဖိုင်ဖွင့်ရန်"}
+                    {language === "en" ? "Open Preview" : "ကြိုကြည့်ရန်"}
                   </Text>
                 </TouchableOpacity>
                 {scanDownloadUrl ? (

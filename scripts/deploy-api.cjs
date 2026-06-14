@@ -11,7 +11,8 @@ const credentialsPath = path.join(
 );
 const gcloudCommand = process.platform === "win32" ? "gcloud.cmd" : "gcloud";
 
-const projectId = process.env.GCLOUD_PROJECT || "sms001-161f2";
+const projectId =
+  process.env.GCLOUD_PROJECT || "mks-certificate-app-cbf64";
 const region = process.env.GCLOUD_REGION || "us-central1";
 const functionName = process.env.GCLOUD_FUNCTION_NAME || "mksDocumentHubApi";
 const pnpmExecPath = process.env.npm_execpath;
