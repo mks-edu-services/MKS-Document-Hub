@@ -283,6 +283,26 @@ The `/document/[id]` detail page was throwing the global error boundary on some 
 
 - This prevents the `Something went wrong / Please reload the app to continue` screen from appearing just because a record has older or imperfect Firestore data.
 - It keeps the registry detail screen usable even when Drive fields or dynamic form fields are incomplete.
+
+## 15) June 2026 Update — Detail Page Hook Order Fix
+
+The document detail page had a React hook ordering bug that only appeared after opening a record from the list. The page now stays stable and opens normally again.
+
+### What was fixed
+
+- Removed a `useEffect` that was only reached after the loading / not-found early returns.
+- The preview modal now receives its image URL when the thumbnail is opened, instead of syncing that state through a later effect.
+
+### Validation
+
+- Signed in with a fresh test user through the live web app.
+- Opened a record from the list successfully.
+- The page now shows the document detail view instead of the `Something went wrong` boundary.
+
+### Notes
+
+- Google Drive image requests may still be blocked by the browser for some direct `drive.google.com` URLs.
+- That is a preview/access issue, not the React crash that was breaking page navigation.
   - `နောက်ဆုံးပြင်သည့်နေ့`
   - `Google Drive ချိတ်ဆက်မှု`
   - `Drive အမှား`

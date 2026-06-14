@@ -478,10 +478,10 @@ export default function DocumentDetailScreen() {
     document.scanFileUrl ||
     document.driveFileUrl ||
     "";
-
-  useEffect(() => {
+  function handleOpenPreview() {
     setPreviewImageUrl(scanFullUrl);
-  }, [scanFullUrl]);
+    setPreviewVisible(true);
+  }
 
   return (
     <ScrollView
@@ -953,7 +953,7 @@ export default function DocumentDetailScreen() {
           values={registryValues}
           thumbnailUrl={scanThumbUrl}
           fullImageUrl={scanFullUrl}
-          onPressThumbnail={() => setPreviewVisible(true)}
+          onPressThumbnail={handleOpenPreview}
           language={language}
         />
       ) : Object.keys(document.fields ?? {}).length > 0 ? (
