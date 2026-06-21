@@ -116,8 +116,8 @@ export function DriveStatusBanner({ onHealthChange }: DriveStatusBannerProps) {
         icon: "info" as const,
         title: text("Live preview service မချိတ်ရသေးပါ", "Live preview service not connected"),
         body: text(
-          "Live preview service မချိတ်ရသေးပါ။ Drive link ကနေဖွင့် / download လုပ်လို့ရပြီး inline preview အတွက် backend API URL ထပ်သတ်မှတ်ရပါမယ်။",
-          "The live preview service is not connected yet. You can still open or download the Drive file from the saved link below, and inline preview needs a backend API URL.",
+          "Live preview service မချိတ်ရသေးပေမယ့် Drive account access ရှိရင် browser ထဲမှာ preview/open/download လုပ်လို့ရနိုင်ပါတယ်။ Backend API URL ရှိရင်တော့ preview ပိုတည်ငြိမ်ပြီး file private ဖြစ်ရင်လည်း proxy နဲ့ပြနိုင်ပါတယ်။",
+          "The live preview service is not connected yet, but if your Drive account has access, the file can still preview/open/download in the browser. A backend API URL makes preview more reliable and can proxy private files.",
         ),
       };
     }

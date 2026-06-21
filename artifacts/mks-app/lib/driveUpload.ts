@@ -81,6 +81,12 @@ export function buildDrivePreviewUrl(value?: string): string {
   return `${API_BASE}/drive/files/${driveFileId}/preview`;
 }
 
+export function buildDrivePreviewPageUrl(value?: string): string {
+  const driveFileId = extractDriveFileId(value);
+  if (!driveFileId) return "";
+  return `https://drive.google.com/file/d/${driveFileId}/preview`;
+}
+
 export function buildDriveThumbnailUrl(value?: string, size = 1200): string {
   const driveFileId = extractDriveFileId(value);
   if (!driveFileId) return "";

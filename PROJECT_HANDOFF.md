@@ -507,3 +507,23 @@ This follow-up reorganized the document detail page so the registry fields and p
 ### Note
 
 - The latest deployed hosting release for this layout cleanup is `1781453689957000`.
+
+## 19) June 2026 Update — Web Drive Preview Fallback
+
+This follow-up improves the document preview when the backend API host is not available.
+
+### What changed
+
+- Added a direct Google Drive preview-page URL helper in `artifacts/mks-app/lib/driveUpload.ts`.
+- The registry preview card now uses a browser-friendly embedded Drive preview frame on web when a saved Drive file ID exists.
+- The preview card still falls back to the existing image-based viewer on native platforms.
+- The Drive status banner now explains that browser preview/open/download can still work from the saved Drive link even without the backend preview proxy.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`
+
+### Deployment note
+
+- A fresh web deploy could not be completed in this environment because the outbound Google/Firebase authentication request was blocked by the current network sandbox.
+- Once the backend/API host is reachable again, the preferred production path is still to set `EXPO_PUBLIC_API_BASE_URL` to that backend so private Drive files can be proxied reliably.

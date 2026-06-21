@@ -36,6 +36,7 @@ import {
   buildDriveFullImageUrl,
   buildDriveDownloadUrl,
   buildDrivePreviewUrl,
+  buildDrivePreviewPageUrl,
   buildDriveThumbnailUrl,
   classifyDriveUploadError,
   extractDriveFileId,
@@ -508,6 +509,11 @@ export default function DocumentDetailScreen() {
     document.scanFileUrl ||
     document.driveFileUrl ||
     "";
+  const scanPreviewPageUrl =
+    buildDrivePreviewPageUrl(preferredScanSource) ||
+    document.scanFileUrl ||
+    document.driveFileUrl ||
+    "";
   function handleOpenPreview() {
     if (!document) return;
     const currentDocument = document;
@@ -589,6 +595,7 @@ export default function DocumentDetailScreen() {
           thumbnailUrl={scanThumbUrl}
           fullImageUrl={scanFullUrl}
           downloadUrl={scanDownloadUrl}
+          previewPageUrl={scanPreviewPageUrl}
           onPressThumbnail={handleOpenPreview}
           language={language}
         />

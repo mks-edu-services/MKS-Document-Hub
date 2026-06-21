@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Image,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -28,6 +29,7 @@ type Props = {
   thumbnailUrl?: string;
   fullImageUrl?: string;
   downloadUrl?: string;
+  previewPageUrl?: string;
   onPressThumbnail?: () => void;
   language?: LanguageCode;
 };
@@ -39,6 +41,7 @@ export function RegistryCertificatePreview({
   thumbnailUrl,
   fullImageUrl,
   downloadUrl,
+  previewPageUrl,
   onPressThumbnail,
   language,
 }: Props) {
@@ -60,6 +63,8 @@ export function RegistryCertificatePreview({
       : fullImageUrl
         ? "ဖိုင်ကိုဖွင့်ကြည့်ရန်နှိပ်ပါ"
         : "အစမ်းကြည့်မရသေးပါ";
+  const previewSource =
+    previewPageUrl || fullImageUrl || thumbnailUrl || "";
 
   useEffect(() => {
     setImageSource(thumbnailUrl || fullImageUrl || "");
@@ -111,40 +116,63 @@ export function RegistryCertificatePreview({
         <View
           style={[styles.thumbColumn, compact && styles.thumbColumnCompact]}
         >
-          <Pressable
-            onPress={onPressThumbnail}
-            disabled={!onPressThumbnail && !fullImageUrl}
-            style={[
-              styles.thumbFrame,
-              { borderColor: colors.border, backgroundColor: colors.muted },
-            ]}
-          >
-            {imageSource ? (
-              <Image
-                source={{ uri: imageSource }}
-                style={styles.thumbImage}
-                resizeMode="cover"
-                onError={() => {
-                  if (imageSource !== fullImageUrl && fullImageUrl) {
-                    setImageSource(fullImageUrl);
-                    return;
-                  }
-                  setImageSource("");
-                }}
-              />
-            ) : (
-              <View style={styles.thumbPlaceholder}>
-                <Text
-                  style={[
-                    styles.thumbPlaceholderText,
-                    { color: colors.mutedForeground },
-                  ]}
-                >
-                  {previewActionLabel || previewUnavailableLabel}
-                </Text>
-              </View>
-            )}
-          </Pressable>
+          {Platform.OS === "web" && previewSource ? (
+            <View
+              style={[
+                styles.thumbFrame,
+                { borderColor: colors.border, backgroundColor: colors.muted },
+              ]}
+            >
+              {React.createElement("iframe" as any, {
+                src: previewSource,
+                title: title || "Drive preview",
+                style: {
+                  width: "100%",
+                  height: "100%",
+                  border: 0,
+                  borderRadius: 8,
+                  backgroundColor: colors.card,
+                },
+                allow: "fullscreen",
+                loading: "lazy",
+              })}
+            </View>
+          ) : (
+            <Pressable
+              onPress={onPressThumbnail}
+              disabled={!onPressThumbnail && !fullImageUrl}
+              style={[
+                styles.thumbFrame,
+                { borderColor: colors.border, backgroundColor: colors.muted },
+              ]}
+            >
+              {imageSource ? (
+                <Image
+                  source={{ uri: imageSource }}
+                  style={styles.thumbImage}
+                  resizeMode="cover"
+                  onError={() => {
+                    if (imageSource !== fullImageUrl && fullImageUrl) {
+                      setImageSource(fullImageUrl);
+                      return;
+                    }
+                    setImageSource("");
+                  }}
+                />
+              ) : (
+                <View style={styles.thumbPlaceholder}>
+                  <Text
+                    style={[
+                      styles.thumbPlaceholderText,
+                      { color: colors.mutedForeground },
+                    ]}
+                  >
+                    {previewActionLabel || previewUnavailableLabel}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          )}
           {downloadUrl ? (
             <TouchableOpacity
               activeOpacity={0.85}
