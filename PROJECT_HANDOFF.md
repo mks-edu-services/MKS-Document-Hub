@@ -425,6 +425,30 @@ This follow-up update focused on the case where a record already has a Google Dr
 
 - `pnpm --filter @workspace/mks-app typecheck`
 
+## 22) June 2026 Update — Combined Certificate Workbook Import
+
+This update imported the two Google-Link Excel workbooks from `D:\MKS\Photo Edititor\G12 Photo\Data\` into the live certificate registry so the `အောင်လက်မှတ်` template records now reflect the latest links and metadata updates.
+
+### What changed
+
+- `scripts/import-registry.cjs` now supports multiple workbook inputs through `REGISTRY_WORKBOOK_PATHS` or repeated `--workbook` arguments.
+- The importer now skips rows without a Google Drive link, so only linked records are written.
+- Existing Firestore documents are matched and updated by Drive file ID and registry keys instead of blindly creating duplicates.
+- The importer now refreshes the stored template metadata so the source workbook list reflects both imported files.
+
+### Import result
+
+- `2025_အောင်လက်မှတ်ထုတ်ယူစာရင်း_.Google_Link.xlsx`: `1076` eligible rows
+- `အောင်လက်မှတ်ထုတ်ယူစာရင်း_Google_Link_Update_Part1.xlsx`: `235` eligible rows
+- Combined eligible records: `1311`
+- Matched existing Firestore documents: `1311`
+- New documents created in this run: `0`
+
+### Verification
+
+- `node scripts/import-registry.cjs --dry-run` with `REGISTRY_WORKBOOK_PATHS` set to the two workbook paths
+- `node scripts/import-registry.cjs` with the same environment, which committed `14` Firestore batches successfully
+
 ## 22) June 2026 Update — Service Types and Record Flow Alignment
 
 This update makes service types configurable in-app and links the new-record flow to the selected template structure.
