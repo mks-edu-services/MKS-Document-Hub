@@ -19,8 +19,10 @@ import { RoleGate } from "@/components/RoleGate";
 import { SetupBanner } from "@/components/SetupBanner";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
+import { getServiceTypeLabelFromValue } from "@/lib/serviceTypes";
 import { Document, Template } from "@/types";
 
 interface StatCard {
@@ -31,13 +33,12 @@ interface StatCard {
   bg: string;
 }
 
-const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
-
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, isFirebaseReady } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { serviceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const { scrollTop } = useLocalSearchParams<{ scrollTop?: string }>();
   const scrollRef = useRef<ScrollView>(null);
@@ -169,7 +170,7 @@ export default function DashboardScreen() {
                     {tmpl.name}
                   </Text>
                   <Text style={[styles.quickSub, isCompact && styles.quickSubCompact, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {tmpl.serviceType}
+                    {getServiceTypeLabelFromValue(language, tmpl.serviceType, serviceTypes)}
                   </Text>
                 </TouchableOpacity>
               ))

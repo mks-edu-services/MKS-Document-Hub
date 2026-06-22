@@ -3,8 +3,10 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useLanguage } from '@/context/LanguageContext';
+import { useServiceTypes } from '@/context/ServiceTypesContext';
 import { Document, DocumentStatus } from '@/types';
 import { getRegistryDisplayTitle, localizeDigits } from "@/lib/registry";
+import { getServiceTypeLabelFromValue } from "@/lib/serviceTypes";
 
 interface DocumentCardProps {
   document: Document;
@@ -28,7 +30,8 @@ const serviceIcons: Record<string, string> = {
 
 export function DocumentCard({ document, onPress, serialNumber }: DocumentCardProps) {
   const colors = useColors();
-  const { formatDate, translateServiceType, translateStatus, t, language } = useLanguage();
+  const { formatDate, translateStatus, t, language } = useLanguage();
+  const { serviceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const isCompact = width < 480;
   const status = statusConfig[document.status] || statusConfig.active;
@@ -93,7 +96,7 @@ export function DocumentCard({ document, onPress, serialNumber }: DocumentCardPr
             <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{document.school || t("school")}</Text>
           </View>
           <View style={styles.metaDot} />
-          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{translateServiceType(document.serviceType)}</Text>
+          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{getServiceTypeLabelFromValue(language, document.serviceType, serviceTypes)}</Text>
           <View style={styles.metaDot} />
           <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{dateStr}</Text>
           {showUpdated ? (

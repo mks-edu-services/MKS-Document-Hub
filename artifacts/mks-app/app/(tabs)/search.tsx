@@ -17,13 +17,14 @@ import { DocumentCard } from "@/components/DocumentCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { sortDocuments, type DocumentSortMode } from "@/lib/documentSorting";
+import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
 import { subscribeToDocuments } from "@/lib/firestore";
 import { Document, FilterState } from "@/types";
 
 const ACADEMIC_YEARS = ["All", "2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
-const SERVICE_TYPES = ["All", "Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const STATUS_OPTIONS = ["All", "Active", "Draft", "Archived"];
 const SORT_OPTIONS: Array<{ labelKey: "newestFirst" | "oldestFirst" | "nameAZ" | "nameZA" | "yearNewest" | "yearOldest" | "seatAscending"; value: DocumentSortMode }> = [
   { labelKey: "newestFirst", value: "updated-desc" },
@@ -51,7 +52,19 @@ function getDocumentDate(document: Document) {
   return document.date || document.updatedAt || document.createdAt;
 }
 
-function FilterSection({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+function FilterSection({
+  label,
+  options,
+  value,
+  onChange,
+  getOptionLabel,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  getOptionLabel?: (value: string) => string;
+}) {
   const colors = useColors();
   return (
     <View style={fStyles.section}>
@@ -64,7 +77,7 @@ function FilterSection({ label, options, value, onChange }: { label: string; opt
             style={[fStyles.chip, { backgroundColor: value === opt ? colors.primary : colors.muted, borderColor: value === opt ? colors.primary : colors.border }]}
             activeOpacity={0.8}
           >
-            <Text style={[fStyles.chipText, { color: value === opt ? "#fff" : colors.foreground }]}>{opt}</Text>
+            <Text style={[fStyles.chipText, { color: value === opt ? "#fff" : colors.foreground }]}>{getOptionLabel ? getOptionLabel(opt) : opt}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -84,7 +97,8 @@ export default function SearchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isFirebaseReady } = useAuth();
-  const { t, translateServiceType, translateStatus } = useLanguage();
+  const { t, translateStatus, language } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const isCompact = width < 640;
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
@@ -105,6 +119,13 @@ export default function SearchScreen() {
     dateTo: "",
     searchQuery: "",
   });
+
+  const serviceTypeOptions = useMemo(
+    () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
+    [activeServiceTypes, serviceTypes],
+  );
+  const getServiceTypeLabel = (value: string) =>
+    value === "All" ? t("all") : getServiceTypeLabelFromValue(language, value, serviceTypes);
 
   useEffect(() => {
     if (!isFirebaseReady) {
@@ -227,9 +248,10 @@ export default function SearchScreen() {
           </View>
           <FilterSection
             label={t("serviceTypeLabel")}
-            options={SERVICE_TYPES}
+            options={serviceTypeOptions}
             value={filters.serviceType}
             onChange={(v) => setFilters((f) => ({ ...f, serviceType: v }))}
+            getOptionLabel={getServiceTypeLabel}
           />
           <FilterSection
             label={t("academicYearLabel")}

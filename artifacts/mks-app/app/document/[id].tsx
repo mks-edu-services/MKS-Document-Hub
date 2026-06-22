@@ -482,7 +482,6 @@ export default function DocumentDetailScreen() {
     ]),
   );
   const showRegistryTable = isRegistryDocument(document);
-  const preferDriveApiPreview = driveHealth?.apiConfigured === true;
   const preferredScanSource =
     document.scanPreviewUrl ||
     document.scanFileId ||
@@ -490,16 +489,17 @@ export default function DocumentDetailScreen() {
     document.driveFileId ||
     document.driveFileUrl ||
     "";
+  const backendScanPreviewUrl = buildDrivePreviewUrl(preferredScanSource);
   const scanThumbUrl =
+    backendScanPreviewUrl ||
     document.scanPreviewUrl ||
-    (preferDriveApiPreview ? buildDrivePreviewUrl(preferredScanSource) : "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
     document.scanFileUrl ||
     document.driveFileUrl ||
     "";
   const scanFullUrl =
+    backendScanPreviewUrl ||
     buildDriveFullImageUrl(preferredScanSource) ||
-    (preferDriveApiPreview ? buildDrivePreviewUrl(preferredScanSource) : "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
     document.scanFileUrl ||
     document.driveFileUrl ||
@@ -510,6 +510,8 @@ export default function DocumentDetailScreen() {
     document.driveFileUrl ||
     "";
   const scanPreviewPageUrl =
+    backendScanPreviewUrl ||
+    document.scanPreviewUrl ||
     buildDrivePreviewPageUrl(preferredScanSource) ||
     document.scanFileUrl ||
     document.driveFileUrl ||

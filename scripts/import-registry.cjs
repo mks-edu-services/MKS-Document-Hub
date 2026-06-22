@@ -78,6 +78,51 @@ function toFieldValue(value) {
   return text;
 }
 
+function extractDriveFileId(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/document\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/presentation\/d\/([a-zA-Z0-9_-]+)/i,
+    /[?&]id=([a-zA-Z0-9_-]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(input) && !input.includes(" ")) {
+    return input;
+  }
+
+  return "";
+}
+
+function normalizeDriveLink(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+  const fileId = extractDriveFileId(input);
+  if (!fileId) return input;
+  return input.includes("drive.google.com") ? input : `https://drive.google.com/open?id=${fileId}`;
+}
+
+function buildDrivePreviewPageUrl(value) {
+  const fileId = extractDriveFileId(value);
+  if (!fileId) return "";
+  return `https://drive.google.com/file/d/${fileId}/preview`;
+}
+
+function getFileNameFromPath(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+  const parts = input.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || "";
+}
+
 function buildHeaderValueMap(headers, values) {
   const map = new Map();
   for (let index = 0; index < headers.length; index += 1) {
@@ -194,8 +239,14 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
   const returnedDate = toFieldValue(valuesByHeader.get("ပြန်ပို့ ရက်စွဲ"));
   const issuedBy = toFieldValue(valuesByHeader.get("ထုတ်ပေးသူ"));
   const notes = toFieldValue(valuesByHeader.get("မှတ်ချက်"));
+  const googleLink = toFieldValue(valuesByHeader.get("Google Link"));
+  const localLink = toFieldValue(valuesByHeader.get("Local Link"));
   const indexValue = rawIndex || String(rowIndex);
   const seatNo = [seatPrefix, certificateNo].filter(Boolean).join(" ").trim();
+  const driveFileId = extractDriveFileId(googleLink);
+  const fileName = getFileNameFromPath(localLink) || `${seatNo || indexValue}.jpg`;
+  const normalizedGoogleLink = normalizeDriveLink(googleLink);
+  const previewPageUrl = buildDrivePreviewPageUrl(googleLink);
 
   const fields = {};
   for (const field of FIELD_DEFS) {
@@ -233,9 +284,14 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
       createdAt: nowIso,
       updatedAt: nowIso,
       scanSearchKey,
-      scanFileName: "",
-      scanFileUrl: "",
-      scanPreviewUrl: "",
+      driveFileId: driveFileId || undefined,
+      driveFileName: fileName || undefined,
+      driveFileUrl: normalizedGoogleLink || undefined,
+      driveFolderPath: localLink ? path.dirname(localLink) : undefined,
+      scanFileId: driveFileId || undefined,
+      scanFileName: fileName || undefined,
+      scanFileUrl: normalizedGoogleLink || undefined,
+      scanPreviewUrl: previewPageUrl || undefined,
       driveSyncError: "",
       driveSyncedAt: "",
       // Preserve a few workbook-specific fields at the top level for quick lookup.
@@ -245,6 +301,7 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
       returnedDate,
       issuedBy,
       notes,
+      localLink: localLink || undefined,
     },
   };
 }

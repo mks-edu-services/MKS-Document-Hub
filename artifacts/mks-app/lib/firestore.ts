@@ -12,8 +12,9 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { AppUser, Document, Template, UserRole } from '@/types';
+import { AppUser, Document, ServiceType, Template, UserRole } from '@/types';
 import { getFirebaseDb } from './firebase';
+import { DEFAULT_SERVICE_TYPES, SERVICE_TYPES_COLLECTION, sortServiceTypes } from './serviceTypes';
 
 function db() {
   const d = getFirebaseDb();
@@ -90,6 +91,71 @@ export async function updateTemplate(id: string, data: Partial<Template>): Promi
 
 export async function deleteTemplate(id: string): Promise<void> {
   await deleteDoc(doc(db(), 'templates', id));
+}
+
+// ── Service Types ─────────────────────────────────────────────────────────
+
+function serviceTypeCollection() {
+  return collection(db(), SERVICE_TYPES_COLLECTION);
+}
+
+export async function ensureDefaultServiceTypes(): Promise<void> {
+  const snap = await getDocs(serviceTypeCollection());
+  const existing = new Set(snap.docs.map((document) => document.id));
+  const now = new Date().toISOString();
+  await Promise.all(
+    DEFAULT_SERVICE_TYPES.filter((serviceType) => !existing.has(serviceType.id)).map((serviceType) =>
+      setDoc(
+        doc(db(), SERVICE_TYPES_COLLECTION, serviceType.id),
+        stripUndefined({
+          ...serviceType,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ),
+    ),
+  );
+}
+
+export async function getServiceTypes(activeOnly = true): Promise<ServiceType[]> {
+  const snap = await getDocs(query(serviceTypeCollection(), orderBy('sortOrder', 'asc')));
+  const items = sortServiceTypes(
+    snap.docs.map((document) => ({ id: document.id, ...document.data() } as ServiceType)),
+  );
+  return activeOnly ? items.filter((item) => item.active) : items;
+}
+
+export async function createServiceType(serviceType: Omit<ServiceType, 'id' | 'createdAt' | 'updatedAt'> & { id: string }): Promise<string> {
+  const now = new Date().toISOString();
+  const ref = doc(db(), SERVICE_TYPES_COLLECTION, serviceType.id);
+  await setDoc(ref, stripUndefined({ ...serviceType, createdAt: now, updatedAt: now }));
+  return ref.id;
+}
+
+export async function updateServiceType(id: string, data: Partial<ServiceType>): Promise<void> {
+  await updateDoc(doc(db(), SERVICE_TYPES_COLLECTION, id), stripUndefined({ ...data, updatedAt: new Date().toISOString() }));
+}
+
+export async function deleteServiceType(id: string): Promise<void> {
+  await deleteDoc(doc(db(), SERVICE_TYPES_COLLECTION, id));
+}
+
+export function subscribeToServiceTypes(
+  callback: (serviceTypes: ServiceType[]) => void,
+  activeOnly = false,
+  onError?: (err: Error) => void
+): () => void {
+  const q = query(serviceTypeCollection(), orderBy('sortOrder', 'asc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = sortServiceTypes(
+        snap.docs.map((document) => ({ id: document.id, ...document.data() } as ServiceType)),
+      );
+      callback(activeOnly ? items.filter((item) => item.active) : items);
+    },
+    (err) => onError?.(err)
+  );
 }
 
 // ── Documents ──────────────────────────────────────────────────────────────

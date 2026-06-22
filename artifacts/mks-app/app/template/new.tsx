@@ -1,7 +1,7 @@
 import { Feather } from "@/components/AppIcons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,12 +17,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { createTemplate } from "@/lib/firestore";
+import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
 import { FieldType, Template, TemplateField } from "@/types";
 
-const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const FIELD_TYPES: { label: string; value: FieldType }[] = [
   { label: "Text", value: "text" },
   { label: "Long Text", value: "textarea" },
@@ -57,13 +58,25 @@ export default function NewTemplateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { t, translateServiceType, translateFieldType } = useLanguage();
+  const { t, language, translateFieldType } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
 
   const [name, setName] = useState("");
-  const [serviceType, setServiceType] = useState(SERVICE_TYPES[0]);
+  const [serviceType, setServiceType] = useState("");
   const [description, setDescription] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (serviceType) return;
+    const defaultServiceType = activeServiceTypes[0]?.id || serviceTypes[0]?.id || "";
+    if (defaultServiceType) setServiceType(defaultServiceType);
+  }, [activeServiceTypes, serviceTypes, serviceType]);
+
+  const visibleServiceTypes = useMemo(
+    () => sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes),
+    [activeServiceTypes, serviceTypes],
+  );
 
   function addField() {
     setFields((prev) => [
@@ -94,6 +107,7 @@ export default function NewTemplateScreen() {
 
   async function handleSave() {
     if (!name.trim()) { Alert.alert("Required", "Please enter a template name."); return; }
+    if (!serviceType.trim()) { Alert.alert("Required", "Please choose a service type."); return; }
     const invalidField = fields.find((f) => !f.label.trim());
     if (invalidField) { Alert.alert("Required", "All fields must have a label."); return; }
 
@@ -151,14 +165,14 @@ export default function NewTemplateScreen() {
             <Text style={[styles.label, { color: colors.foreground }]}>{t("serviceType")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.chips}>
-                {SERVICE_TYPES.map((svc) => (
+                {visibleServiceTypes.map((svc) => (
                   <TouchableOpacity
-                    key={svc}
-                  onPress={() => setServiceType(svc)}
-                  style={[styles.chip, { backgroundColor: serviceType === svc ? colors.primary : colors.muted, borderColor: serviceType === svc ? colors.primary : colors.border }]}
-                  activeOpacity={0.8}
-                >
-                    <Text style={[styles.chipText, { color: serviceType === svc ? "#fff" : colors.foreground }]}>{translateServiceType(svc)}</Text>
+                    key={svc.id}
+                    onPress={() => setServiceType(svc.id)}
+                    style={[styles.chip, { backgroundColor: serviceType === svc.id ? colors.primary : colors.muted, borderColor: serviceType === svc.id ? colors.primary : colors.border }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.chipText, { color: serviceType === svc.id ? "#fff" : colors.foreground }]}>{getServiceTypeLabelFromValue(language, svc.id, serviceTypes)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

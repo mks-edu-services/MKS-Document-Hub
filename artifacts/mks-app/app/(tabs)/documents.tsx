@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { DocumentCard } from "@/components/DocumentCard";
 import { EmptyState } from "@/components/EmptyState";
 import { RoleGate } from "@/components/RoleGate";
@@ -21,11 +22,10 @@ import { useColors } from "@/hooks/useColors";
 import { sortDocuments, type DocumentSortMode } from "@/lib/documentSorting";
 import { subscribeToDocuments } from "@/lib/firestore";
 import { getRegistryFieldDefinitions } from "@/lib/registry";
+import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
 import { Document, DocumentStatus } from "@/types";
 import { useWindowDimensions } from "react-native";
 import * as XLSX from "xlsx";
-
-const SERVICE_TYPES = ["All", "Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "All", value: "all" },
   { label: "Active", value: "active" },
@@ -46,7 +46,8 @@ export default function DocumentsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isFirebaseReady } = useAuth();
-  const { t, translateServiceType, translateStatus, language } = useLanguage();
+  const { t, translateStatus, language } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const isCompact = width < 640;
@@ -84,6 +85,12 @@ export default function DocumentsScreen() {
     return matchSearch && matchService && matchStatus;
   });
   const sorted = useMemo(() => sortDocuments(filtered, sortMode), [filtered, sortMode]);
+  const serviceTypeOptions = useMemo(
+    () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
+    [activeServiceTypes, serviceTypes],
+  );
+  const getServiceTypeLabel = (value: string) =>
+    value === "All" ? t("all") : getServiceTypeLabelFromValue(language, value, serviceTypes);
   const tracking = {
     total: sorted.length,
     active: sorted.filter((d) => d.status === "active").length,
@@ -146,7 +153,7 @@ export default function DocumentsScreen() {
             column.key === "index"
               ? index + 1
               : column.key === "serviceType"
-              ? translateServiceType(doc.serviceType)
+              ? getServiceTypeLabelFromValue(language, doc.serviceType, serviceTypes)
               : column.key === "status"
               ? translateStatus(doc.status)
               : column.key in docRecord
@@ -271,7 +278,7 @@ export default function DocumentsScreen() {
                   <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("serviceType")}</Text>
                   {isWide ? (
                     <View style={styles.filterWrap}>
-                      {SERVICE_TYPES.map((svc) => (
+                      {serviceTypeOptions.map((svc) => (
                         <TouchableOpacity
                           key={svc}
                           onPress={() => setServiceFilter(svc)}
@@ -285,14 +292,14 @@ export default function DocumentsScreen() {
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.chipText, { color: serviceFilter === svc ? "#fff" : colors.foreground }]}>
-                            {svc === "All" ? t("all") : translateServiceType(svc)}
+                            {getServiceTypeLabel(svc)}
                           </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   ) : (
                     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.filterScroll}>
-                      {SERVICE_TYPES.map((svc) => (
+                      {serviceTypeOptions.map((svc) => (
                         <TouchableOpacity
                           key={svc}
                           onPress={() => setServiceFilter(svc)}
@@ -306,7 +313,7 @@ export default function DocumentsScreen() {
                           activeOpacity={0.8}
                         >
                           <Text style={[styles.chipText, { color: serviceFilter === svc ? "#fff" : colors.foreground }]}>
-                            {svc === "All" ? t("all") : translateServiceType(svc)}
+                            {getServiceTypeLabel(svc)}
                           </Text>
                         </TouchableOpacity>
                       ))}

@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -19,9 +20,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
-import { deleteTemplate, getAllUsers, getTemplates, updateUserRole, updateUserProfile } from "@/lib/firestore";
-import { AppUser, Template, UserRole } from "@/types";
+import { deleteTemplate, deleteServiceType, getAllUsers, getTemplates, createServiceType, updateServiceType, updateUserRole, updateUserProfile } from "@/lib/firestore";
+import { AppUser, ServiceType, Template, UserRole } from "@/types";
+import { createServiceTypeId, getServiceTypeLabelFromValue } from "@/lib/serviceTypes";
 
 const ROLES: UserRole[] = ["admin", "editor", "viewer"];
 const roleColors: Record<UserRole, { bg: string; text: string }> = {
@@ -30,19 +33,27 @@ const roleColors: Record<UserRole, { bg: string; text: string }> = {
   viewer: { bg: "#f0fdf4", text: "#16a34a" },
 };
 
-type TabType = "templates" | "users";
+type TabType = "templates" | "serviceTypes" | "users";
 
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, isFirebaseReady } = useAuth();
-  const { t, translateServiceType } = useLanguage();
+  const { t, language } = useLanguage();
+  const { serviceTypes } = useServiceTypes();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const currentUser = user;
 
   const [tab, setTab] = useState<TabType>("templates");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [editingServiceTypeId, setEditingServiceTypeId] = useState<string | null>(null);
+  const [serviceTypeId, setServiceTypeId] = useState("");
+  const [serviceTypeLabelMy, setServiceTypeLabelMy] = useState("");
+  const [serviceTypeLabelEn, setServiceTypeLabelEn] = useState("");
+  const [serviceTypeActive, setServiceTypeActive] = useState(true);
+  const [serviceTypeSortOrder, setServiceTypeSortOrder] = useState("0");
+  const [savingServiceType, setSavingServiceType] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -73,6 +84,91 @@ export default function AdminScreen() {
             setTemplates((prev) => prev.filter((t) => t.id !== id));
           } catch (_) {
             Alert.alert(t("error"), t("failedToDeleteTemplate"));
+          }
+        },
+      },
+    ]);
+  }
+
+  function resetServiceTypeForm() {
+    setEditingServiceTypeId(null);
+    setServiceTypeId("");
+    setServiceTypeLabelMy("");
+    setServiceTypeLabelEn("");
+    setServiceTypeActive(true);
+    setServiceTypeSortOrder("0");
+  }
+
+  function startEditServiceType(item: ServiceType) {
+    setEditingServiceTypeId(item.id);
+    setServiceTypeId(item.id);
+    setServiceTypeLabelMy(item.labelMy ?? item.label ?? "");
+    setServiceTypeLabelEn(item.labelEn ?? item.label ?? "");
+    setServiceTypeActive(item.active);
+    setServiceTypeSortOrder(String(item.sortOrder ?? 0));
+    setTab("serviceTypes");
+  }
+
+  async function handleSaveServiceType() {
+    const fallbackLabel = serviceTypeLabelMy.trim() || serviceTypeLabelEn.trim() || serviceTypeId.trim();
+    if (!fallbackLabel) {
+      Alert.alert(t("required"), t("serviceType") + " " + t("fieldRequired"));
+      return;
+    }
+
+    const id = editingServiceTypeId ?? createServiceTypeId(serviceTypeLabelEn, serviceTypeLabelMy);
+    const sortOrderValue = Number(serviceTypeSortOrder);
+    const payload = {
+      label: fallbackLabel,
+      labelMy: serviceTypeLabelMy.trim() || undefined,
+      labelEn: serviceTypeLabelEn.trim() || undefined,
+      active: serviceTypeActive,
+      sortOrder: Number.isFinite(sortOrderValue) ? sortOrderValue : undefined,
+      builtin: serviceTypes.find((item) => item.id === id)?.builtin ?? false,
+    };
+
+    setSavingServiceType(true);
+    try {
+      if (editingServiceTypeId) {
+        await updateServiceType(editingServiceTypeId, payload);
+      } else {
+        await createServiceType({ id, ...payload });
+      }
+      resetServiceTypeForm();
+      Alert.alert("အောင်မြင်", "ဝန်ဆောင်မှုအမျိုးအစားကို သိမ်းပြီးပါပြီ။");
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? "ဝန်ဆောင်မှုအမျိုးအစားကို save မလုပ်နိုင်ပါ။");
+    } finally {
+      setSavingServiceType(false);
+    }
+  }
+
+  async function handleToggleServiceType(item: ServiceType) {
+    try {
+      await updateServiceType(item.id, { active: !item.active });
+    } catch (_) {
+      Alert.alert(t("error"), "ဝန်ဆောင်မှုအမျိုးအစားကို update မလုပ်နိုင်ပါ။");
+    }
+  }
+
+  async function handleDeleteServiceType(item: ServiceType) {
+    if (item.builtin) {
+      Alert.alert(t("error"), "Builtin service type ကို delete မလုပ်ပါ။ Hide လုပ်ပါ။");
+      return;
+    }
+    Alert.alert(t("delete"), `"${getServiceTypeLabelFromValue(language, item.id, serviceTypes)}" ${t("delete")} ?`, [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteServiceType(item.id);
+            if (editingServiceTypeId === item.id) {
+              resetServiceTypeForm();
+            }
+          } catch (_) {
+            Alert.alert(t("error"), "ဝန်ဆောင်မှုအမျိုးအစားကို delete မလုပ်နိုင်ပါ။");
           }
         },
       },
@@ -113,7 +209,7 @@ export default function AdminScreen() {
         </View>
 
         <View style={[styles.tabRow, { backgroundColor: "rgba(255,255,255,0.1)" }]}>
-          {(["templates", "users"] as TabType[]).map((tabName) => (
+          {(["templates", "serviceTypes", "users"] as TabType[]).map((tabName) => (
             <TouchableOpacity
               key={tabName}
               onPress={() => setTab(tabName)}
@@ -122,11 +218,13 @@ export default function AdminScreen() {
             >
               {tabName === "templates" ? (
                 <Feather name="layout" size={14} color={tab === tabName ? "#fff" : "rgba(255,255,255,0.6)"} />
+              ) : tabName === "serviceTypes" ? (
+                <Feather name="tag" size={14} color={tab === tabName ? "#fff" : "rgba(255,255,255,0.6)"} />
               ) : (
                 <Feather name="users" size={14} color={tab === tabName ? "#fff" : "rgba(255,255,255,0.6)"} />
               )}
               <Text style={[styles.tabText, { color: tab === tabName ? "#fff" : "rgba(255,255,255,0.6)" }]}>
-                {tabName === "templates" ? t("templates") : t("users")}
+                {tabName === "templates" ? t("templates") : tabName === "serviceTypes" ? t("serviceType") : t("users")}
               </Text>
             </TouchableOpacity>
           ))}
@@ -186,7 +284,7 @@ export default function AdminScreen() {
                 <View style={styles.templateInfo}>
                   <Text style={[styles.templateName, { color: colors.foreground }]}>{item.name}</Text>
                   <Text style={[styles.templateSub, { color: colors.mutedForeground }]}>
-                    {translateServiceType(item.serviceType)} · {item.fields.length} {t("fieldsCount")}
+                    {getServiceTypeLabelFromValue(language, item.serviceType, serviceTypes)} · {item.fields.length} {t("fieldsCount")}
                   </Text>
                 </View>
                 <View style={[styles.activeBadge, { backgroundColor: item.active ? colors.successLight : colors.muted }]}>
@@ -209,6 +307,146 @@ export default function AdminScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDeleteTemplate(item.id, item.name)}
+                  style={[styles.actionBtn, { backgroundColor: "#fee2e2" }]}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="trash-2" size={14} color={colors.destructive} />
+                  <Text style={[styles.actionBtnText, { color: colors.destructive }]}>{t("delete")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      ) : tab === "serviceTypes" ? (
+        <FlatList
+          data={serviceTypes}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+          ListHeaderComponent={
+            <View style={styles.serviceTypeHeader}>
+              <View style={[styles.headerActions, { gap: 8 }]}>
+                <TouchableOpacity
+                  onPress={resetServiceTypeForm}
+                  style={[styles.addTemplateBtnFull, { backgroundColor: colors.navyLight }]}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="rotate-ccw" size={18} color={colors.primary} />
+                  <Text style={[styles.addTemplateText, { color: colors.primary }]}>ဖောင်ရှင်းရန်</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveServiceType}
+                  disabled={savingServiceType}
+                  style={[styles.addTemplateBtnFull, { backgroundColor: colors.accent }]}
+                  activeOpacity={0.85}
+                >
+                  {savingServiceType ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="save" size={18} color="#fff" />}
+                  <Text style={styles.addTemplateText}>{editingServiceTypeId ? "ပြင်ဆင်သိမ်းရန်" : "အသစ်ထည့်ရန်"}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.templateName, { color: colors.foreground }]}>{editingServiceTypeId ? "ဝန်ဆောင်မှုအမျိုးအစား ပြင်ရန်" : "ဝန်ဆောင်မှုအမျိုးအစား အသစ်ထည့်ရန်"}</Text>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>ID</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, backgroundColor: colors.muted, color: colors.foreground }]}
+                    value={serviceTypeId}
+                    onChangeText={setServiceTypeId}
+                    placeholder="service-type-id"
+                    placeholderTextColor={colors.mutedForeground}
+                    editable={!editingServiceTypeId}
+                  />
+                </View>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>မြန်မာလို / Label MY</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, backgroundColor: colors.muted, color: colors.foreground }]}
+                    value={serviceTypeLabelMy}
+                    onChangeText={setServiceTypeLabelMy}
+                    placeholder="အောင်လက်မှတ်"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                </View>
+                <View style={styles.fieldGroup}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>English / Label EN</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: colors.border, backgroundColor: colors.muted, color: colors.foreground }]}
+                    value={serviceTypeLabelEn}
+                    onChangeText={setServiceTypeLabelEn}
+                    placeholder="Degree Certificate"
+                    placeholderTextColor={colors.mutedForeground}
+                  />
+                </View>
+                <View style={styles.fieldRow}>
+                  <View style={[styles.fieldGroup, { flex: 1 }]}>
+                    <Text style={[styles.label, { color: colors.foreground }]}>အစီအစဉ်</Text>
+                    <TextInput
+                      style={[styles.input, { borderColor: colors.border, backgroundColor: colors.muted, color: colors.foreground }]}
+                      value={serviceTypeSortOrder}
+                      onChangeText={setServiceTypeSortOrder}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={colors.mutedForeground}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setServiceTypeActive((prev) => !prev)}
+                    style={[styles.togglePill, { backgroundColor: serviceTypeActive ? colors.successLight : colors.muted, borderColor: colors.border }]}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name={serviceTypeActive ? "eye" : "eye-off"} size={16} color={serviceTypeActive ? colors.success : colors.mutedForeground} />
+                    <Text style={[styles.togglePillText, { color: serviceTypeActive ? colors.success : colors.mutedForeground }]}>
+                      {serviceTypeActive ? "ပြ" : "ဖျောက်"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          }
+          ListEmptyComponent={<EmptyState icon="tag" title="ဝန်ဆောင်မှုအမျိုးအစားမရှိသေးပါ" subtitle="အပေါ်ကဖောင်မှတဆင့် အသစ်ထည့်နိုင်ပါတယ်။" />}
+          renderItem={({ item }) => (
+            <View style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.templateCardTop}>
+                <View style={[styles.templateIcon, { backgroundColor: colors.tealLight }]}>
+                  <Feather name="tag" size={18} color={colors.accent} />
+                </View>
+                <View style={styles.templateInfo}>
+                  <Text style={[styles.templateName, { color: colors.foreground }]}>
+                    {getServiceTypeLabelFromValue(language, item.id, serviceTypes)}
+                  </Text>
+                  <Text style={[styles.templateSub, { color: colors.mutedForeground }]}>
+                    {item.id} · {item.labelEn ?? item.labelMy ?? item.label}
+                  </Text>
+                </View>
+                <View style={[styles.activeBadge, { backgroundColor: item.active ? colors.successLight : colors.muted }]}>
+                  <Text style={[styles.activeBadgeText, { color: item.active ? colors.success : colors.mutedForeground }]}>
+                    {item.active ? t("active") : t("inactive")}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.templateActions}>
+                <TouchableOpacity
+                  onPress={() => startEditServiceType(item)}
+                  style={[styles.actionBtn, { backgroundColor: colors.navyLight }]}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="edit-2" size={14} color={colors.primary} />
+                  <Text style={[styles.actionBtnText, { color: colors.primary }]}>{t("edit")}</Text>
+                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => void handleToggleServiceType(item)}
+                    style={[styles.actionBtn, { backgroundColor: item.active ? "#fef3c7" : "#dcfce7" }]}
+                    activeOpacity={0.8}
+                  >
+                  <Feather name={item.active ? "eye-off" : "eye"} size={14} color={item.active ? "#b45309" : "#16a34a"} />
+                  <Text style={[styles.actionBtnText, { color: item.active ? "#b45309" : "#16a34a" }]}>
+                    {item.active ? "ဖျောက်" : "ပြ"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => void handleDeleteServiceType(item)}
                   style={[styles.actionBtn, { backgroundColor: "#fee2e2" }]}
                   activeOpacity={0.8}
                 >
@@ -399,6 +637,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addTemplateText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  serviceTypeHeader: { gap: 12, marginBottom: 16 },
+  fieldGroup: { gap: 6 },
+  fieldRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  label: { fontSize: 13, fontWeight: "600" },
+  input: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15 },
+  togglePill: {
+    minWidth: 104,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignSelf: "flex-end",
+    marginTop: 23,
+  },
+  togglePillText: { fontSize: 13, fontWeight: "700" },
   templateCard: {
     borderRadius: 12,
     borderWidth: 1,

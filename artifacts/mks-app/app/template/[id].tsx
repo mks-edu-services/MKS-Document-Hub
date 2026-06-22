@@ -1,7 +1,7 @@
 import { Feather } from "@/components/AppIcons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,12 +18,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { RoleRouteGate } from "@/components/RoleRouteGate";
-import { getTemplate, updateTemplate } from "@/lib/firestore";
+import { createDocument, getDocuments, getTemplate, updateDocument, updateTemplate } from "@/lib/firestore";
+import {
+  buildTemplateWorkbookDownloadName,
+  buildTemplateWorkbookRows,
+  createTemplateWorkbook,
+  parseTemplateWorkbookRows,
+} from "@/lib/templateWorkbook";
 import { FieldType, Template, TemplateField } from "@/types";
+import * as XLSX from "xlsx";
+import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
 
-const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const FIELD_TYPES: { label: string; value: FieldType }[] = [
   { label: "Text", value: "text" },
   { label: "Long Text", value: "textarea" },
@@ -57,17 +65,31 @@ function parseOptions(raw: string) {
 export default function EditTemplateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { t, translateServiceType, translateFieldType } = useLanguage();
+  const { t, language, translateFieldType } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [name, setName] = useState("");
-  const [serviceType, setServiceType] = useState(SERVICE_TYPES[0]);
+  const [serviceType, setServiceType] = useState("");
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingWorkbook, setExportingWorkbook] = useState(false);
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
+
+  useEffect(() => {
+    if (serviceType) return;
+    const defaultServiceType = activeServiceTypes[0]?.id || serviceTypes[0]?.id || "";
+    if (defaultServiceType) setServiceType(defaultServiceType);
+  }, [activeServiceTypes, serviceTypes, serviceType]);
+
+  const visibleServiceTypes = useMemo(
+    () => sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes),
+    [activeServiceTypes, serviceTypes],
+  );
 
   useEffect(() => {
     if (id) {
@@ -113,6 +135,194 @@ export default function EditTemplateScreen() {
     setSaving(false);
   }
 
+  async function handleDownloadBlankWorkbook() {
+    if (!template) return;
+    setExportingWorkbook(true);
+    try {
+      const workbook = createTemplateWorkbook(
+        {
+          ...template,
+          fields,
+        },
+        [],
+        true,
+      );
+      const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = buildTemplateWorkbookDownloadName({ ...template, fields }, "Blank_Template");
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? "Template workbook ကို download မလုပ်နိုင်ပါ။");
+    } finally {
+      setExportingWorkbook(false);
+    }
+  }
+
+  async function handleExportWorkbook() {
+    if (!template) return;
+    setExportingWorkbook(true);
+    try {
+      const documents = await getDocuments();
+      const templateDocuments = documents.filter((doc) => doc.templateId === template.id);
+      const workbook = createTemplateWorkbook(
+        {
+          ...template,
+          fields,
+        },
+        buildTemplateWorkbookRows({ ...template, fields }, templateDocuments),
+        true,
+      );
+      const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = buildTemplateWorkbookDownloadName({ ...template, fields }, "Records_Export");
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? "Template export မလုပ်နိုင်ပါ။");
+    } finally {
+      setExportingWorkbook(false);
+    }
+  }
+
+  function openImportPicker() {
+    if (!template) return;
+    if (Platform.OS !== "web") {
+      Alert.alert(t("error"), "Excel import is supported on web/desktop only for now.");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xls";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setImportingWorkbook(true);
+      try {
+        const buffer = await file.arrayBuffer();
+        const rows = parseTemplateWorkbookRows(buffer, { ...template, fields });
+        const documents = await getDocuments();
+        const templateDocuments = documents.filter((doc) => doc.templateId === template.id);
+        const docsById = new Map(templateDocuments.map((doc) => [doc.id, doc]));
+        const docsByKey = new Map<string, Template>();
+        const rowsToUpdate = new Map<string, any>();
+
+        const normalize = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+        const findMatchKey = (row: Record<string, string>) => {
+          const appDocumentId = normalize(row.app_document_id);
+          if (appDocumentId && docsById.has(appDocumentId)) return { type: "id" as const, key: appDocumentId };
+          const seat = normalize(row.seat_no || [row.seat_prefix, row.certificate_no].filter(Boolean).join(" "));
+          const name = normalize(row.student_name);
+          const year = normalize(row.academic_year || row.year);
+          const key = [seat, name, year].filter(Boolean).join("|");
+          if (!key) return null;
+          return { type: "lookup" as const, key };
+        };
+
+        let updated = 0;
+        let created = 0;
+        let skipped = 0;
+
+        for (const row of rows) {
+          const customFieldValues = Object.fromEntries(
+            fields.map((field) => [field.id, String(row[field.labelMy || field.labelEn || field.label || field.id] ?? row[field.id] ?? "").trim()]),
+          );
+          const driveLink = String(row.drive_link ?? "").trim();
+          const driveFileId = String(row.drive_file_id ?? "").trim() || (driveLink ? driveLink.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ?? "" : "");
+          const seatPrefix = String(row.seat_prefix ?? "").trim();
+          const certificateNo = String(row.certificate_no ?? "").trim();
+          const seatNo = String(row.seat_no ?? [seatPrefix, certificateNo].filter(Boolean).join(" ")).trim();
+          const studentName = String(row.student_name ?? customFieldValues.name ?? "").trim();
+          const academicYear = String(row.academic_year ?? row.year ?? "").trim();
+          const title =
+            String(row.title ?? "").trim() ||
+            [seatNo, academicYear ? `(${academicYear})` : ""].filter(Boolean).join(" ").trim() + (studentName ? ` - ${studentName}` : "");
+          const match = findMatchKey(row);
+          const payload = {
+            title: title || template.name,
+            templateId: template.id,
+            templateName: template.name,
+            serviceType: template.serviceType,
+            fields: customFieldValues,
+            index: String(row.index ?? "").trim(),
+            year: String(row.year ?? academicYear ?? "").trim(),
+            seatPrefix: seatPrefix || undefined,
+            seatNo: seatNo || undefined,
+            seatNumber: seatNo || undefined,
+            certificateNo: certificateNo || undefined,
+            studentName: studentName || seatNo || title || template.name,
+            fatherName: String(row.father_name ?? "").trim() || undefined,
+            township: String(row.township ?? "").trim() || undefined,
+            submittedBy: String(row.submitted_by ?? "").trim() || undefined,
+            submittedDate: String(row.submitted_date ?? "").trim() || undefined,
+            receivedDate: String(row.received_date ?? "").trim() || undefined,
+            returnedDate: String(row.returned_date ?? "").trim() || undefined,
+            issuedBy: String(row.issued_by ?? "").trim() || undefined,
+            school: String(row.school ?? "").trim() || undefined,
+            academicYear: academicYear || undefined,
+            agent: String(row.agent ?? "").trim() || undefined,
+            date: String(row.date ?? "").trim() || undefined,
+            status: String(row.status ?? "active").trim() || "active",
+            driveFileId: driveFileId || undefined,
+            driveFileUrl: driveLink || undefined,
+            driveFileName: String(row.drive_file_name ?? "").trim() || undefined,
+            driveFolderLink: String(row.drive_folder_link ?? "").trim() || undefined,
+            driveFolderPath: String(row.drive_folder_path ?? "").trim() || undefined,
+            driveMatchMethod: String(row.match_method ?? "").trim() || undefined,
+            driveMatchConfidence: row.match_confidence ? Number(row.match_confidence) : undefined,
+            notes: String(row.notes ?? "").trim() || undefined,
+            driveSyncStatus: driveLink || driveFileId ? "synced" : "pending",
+            driveSyncedAt: driveLink || driveFileId ? new Date().toISOString() : undefined,
+            driveSyncError: undefined,
+          } as const;
+
+          if (match?.type === "id") {
+            await updateDocument(match.key, payload as any);
+            updated += 1;
+            continue;
+          }
+
+          const existing = match ? templateDocuments.find((doc) => {
+            const seat = normalize(doc.seatNo ?? doc.seatNumber ?? "");
+            const name = normalize(doc.studentName ?? "");
+            const year = normalize(doc.academicYear ?? doc.year ?? "");
+            return [seat, name, year].filter(Boolean).join("|") === match.key;
+          }) : null;
+
+          if (existing) {
+            await updateDocument(existing.id, payload as any);
+            updated += 1;
+            continue;
+          }
+
+          await createDocument(payload as any);
+          created += 1;
+        }
+
+        Alert.alert(
+          t("driveTools"),
+          `Import ပြီးပါပြီ\nUpdated: ${updated}\nCreated: ${created}\nSkipped: ${skipped}`,
+        );
+      } catch (error: any) {
+        Alert.alert(t("error"), error?.message ?? "Workbook import မလုပ်နိုင်ပါ။");
+      } finally {
+        setImportingWorkbook(false);
+      }
+    };
+    input.click();
+  }
+
   if (loading) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
       <ActivityIndicator size="large" color={colors.primary} />
@@ -155,9 +365,9 @@ export default function EditTemplateScreen() {
             <Text style={[styles.label, { color: colors.foreground }]}>{t("serviceType")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.chips}>
-                {SERVICE_TYPES.map((svc) => (
-                  <TouchableOpacity key={svc} onPress={() => setServiceType(svc)} style={[styles.chip, { backgroundColor: serviceType === svc ? colors.primary : colors.muted, borderColor: serviceType === svc ? colors.primary : colors.border }]} activeOpacity={0.8}>
-                    <Text style={[styles.chipText, { color: serviceType === svc ? "#fff" : colors.foreground }]}>{translateServiceType(svc)}</Text>
+                {visibleServiceTypes.map((svc) => (
+                  <TouchableOpacity key={svc.id} onPress={() => setServiceType(svc.id)} style={[styles.chip, { backgroundColor: serviceType === svc.id ? colors.primary : colors.muted, borderColor: serviceType === svc.id ? colors.primary : colors.border }]} activeOpacity={0.8}>
+                    <Text style={[styles.chipText, { color: serviceType === svc.id ? "#fff" : colors.foreground }]}>{getServiceTypeLabelFromValue(language, svc.id, serviceTypes)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -180,6 +390,46 @@ export default function EditTemplateScreen() {
           <View style={styles.toggleRow}>
             <Text style={[styles.label, { color: colors.foreground }]}>{t("active")}</Text>
             <Switch value={active} onValueChange={setActive} trackColor={{ true: colors.accent }} thumbColor="#fff" />
+          </View>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.primary }]}>Excel Workbook</Text>
+          <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
+            ဒီ template ရဲ့ record columns အကုန်ပါအောင် blank template / export / import လုပ်နိုင်ပါတယ်။
+          </Text>
+          <View style={styles.workbookActions}>
+            <TouchableOpacity
+              onPress={() => void handleDownloadBlankWorkbook()}
+              disabled={exportingWorkbook}
+              style={[styles.workbookBtn, { backgroundColor: colors.navyLight, borderColor: colors.border }]}
+              activeOpacity={0.85}
+            >
+              {exportingWorkbook ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Feather name="download" size={16} color={colors.primary} />
+              )}
+              <Text style={[styles.workbookBtnText, { color: colors.primary }]}>Blank Template</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void handleExportWorkbook()}
+              disabled={exportingWorkbook}
+              style={[styles.workbookBtn, { backgroundColor: colors.accent }]}
+              activeOpacity={0.85}
+            >
+              {exportingWorkbook ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="file-text" size={16} color="#fff" />}
+              <Text style={[styles.workbookBtnText, { color: "#fff" }]}>Export Records</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={openImportPicker}
+              disabled={importingWorkbook}
+              style={[styles.workbookBtn, { backgroundColor: colors.primary }]}
+              activeOpacity={0.85}
+            >
+              {importingWorkbook ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="upload" size={16} color="#fff" />}
+              <Text style={[styles.workbookBtnText, { color: "#fff" }]}>Import Workbook</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -276,6 +526,18 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   chipText: { fontSize: 12, fontWeight: "600" },
   toggleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  workbookActions: { gap: 8 },
+  workbookBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  workbookBtnText: { fontSize: 14, fontWeight: "700" },
   addFieldBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   addFieldText: { fontSize: 13, fontWeight: "700" },
   fieldCard: { borderRadius: 10, borderWidth: 1, padding: 12, gap: 10 },

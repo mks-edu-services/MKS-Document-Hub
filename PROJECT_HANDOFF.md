@@ -424,6 +424,28 @@ This follow-up update focused on the case where a record already has a Google Dr
 ### Validation
 
 - `pnpm --filter @workspace/mks-app typecheck`
+
+## 22) June 2026 Update — Service Types and Record Flow Alignment
+
+This update makes service types configurable in-app and links the new-record flow to the selected template structure.
+
+### What changed
+
+- Added a Firestore-backed `serviceTypes` collection with built-in defaults for the original five service types.
+- Added service type labels for Burmese and English, plus active/hidden control in the admin panel.
+- Added admin CRUD support for service types: create, edit, hide/show, and delete custom types.
+- Updated `/document/new` so the selected service type drives the matching template list and its custom fields.
+- Updated template create/edit screens to use the live service type list instead of hardcoded chips.
+- Updated document list, search filters, dashboard cards, and document cards to render localized service type labels from the saved service type definitions.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful web hosting release for this update is `1782114758373000`.
 - `pnpm --filter @workspace/api-server typecheck`
 
 ### Expected result
@@ -468,6 +490,22 @@ This update removes the dependency on Replit connectors for the backend path whe
 ## 17) June 2026 Update — Detail Screen Crash Fix & Preview Verification
 
 This follow-up fixed the React crash that was showing as `Something went wrong` when opening a document detail page.
+
+## 18) June 2026 Update — Drive Preview Access Backfill
+
+This follow-up addressed the `You need access` preview problem on the document detail page by making the stored Drive files publicly readable.
+
+### What changed
+
+- Ran `scripts/publicize-drive-files.cjs` against Firestore-backed document records.
+- Publicized 233 unique Drive file IDs as `reader` for `anyone`, covering both primary Drive links and scan links.
+- Redeployed the web app so the current hosted UI reflects the latest preview and document detail changes.
+
+### Result
+
+- Drive preview embeds no longer depend on a signed-in Google account for the existing records in the database.
+- Users can open the preview page in the browser without hitting the `You need access` permission screen for the backfilled files.
+- The latest hosted release is available at `https://mksedudoc.web.app`.
 
 ### What changed
 
@@ -527,3 +565,36 @@ This follow-up improves the document preview when the backend API host is not av
 
 - A fresh web deploy could not be completed in this environment because the outbound Google/Firebase authentication request was blocked by the current network sandbox.
 - Once the backend/API host is reachable again, the preferred production path is still to set `EXPO_PUBLIC_API_BASE_URL` to that backend so private Drive files can be proxied reliably.
+
+## 20) June 2026 Update — Google-Link Registry Import
+
+This update imported the workbook `D:\MKS\Photo Edititor\G12 Photo\Data\အောင်လက်မှတ်ထုတ်ယူစာရင်း_Google_Link_Update_Part1.xlsx` into Firestore so the registry records now carry the saved Google Drive links.
+
+### What changed
+
+- `scripts/import-registry.cjs` now reads the workbook’s `Google Link` and `Local Link` columns.
+- Each imported registry record now stores the Google Drive URL in `driveFileUrl` and `scanFileUrl`.
+- Each imported registry record now stores a browser preview URL in `scanPreviewUrl` using the Drive `/preview` page.
+- The workbook’s local file name and local folder path are also preserved in the imported record for reference.
+
+### Import result
+
+- Parsed rows: `235`
+- Firestore batches committed: `3`
+- Sample record `registry-2025-0001` now has `driveFileUrl`, `scanFileUrl`, and `scanPreviewUrl` populated from the workbook link.
+
+## 21) June 2026 Update — Template Library and Workbook Flow
+
+This update adds a dedicated template library route and template-scoped workbook export/import helpers so template records can be managed without mixing template setup with record entry.
+
+### What changed
+
+- Added `/template` as a template library page that lists all templates, including hidden ones.
+- The template list now supports create, edit, hide/show, delete, and “use template” actions.
+- Added workbook tools to `/template/[id]` so a template can export a blank workbook, export its records, and import a filled workbook back in.
+- The workbook export now includes the template’s custom fields in addition to the base record columns.
+- The top chrome menu now links directly to the template library for quicker access.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`

@@ -34,6 +34,18 @@ export interface TemplateField {
   descriptionEn?: string;
 }
 
+export interface ServiceType {
+  id: string;
+  label: string;
+  labelMy?: string;
+  labelEn?: string;
+  active: boolean;
+  sortOrder?: number;
+  builtin?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Template {
   id: string;
   name: string;

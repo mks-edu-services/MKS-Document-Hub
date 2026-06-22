@@ -44,6 +44,7 @@ export function GlobalChrome() {
       { label: t("search"), icon: "search", href: "/(tabs)/search" },
       { label: t("profile"), icon: "user", href: "/(tabs)/profile" },
       { label: t("admin"), icon: "admin-panel-settings", href: "/(tabs)/admin", visible: user?.role === "admin" },
+      { label: t("templates"), icon: "layout", href: "/template", visible: user?.role === "admin" },
       { label: t("newDocument"), icon: "file-plus", href: "/document/new", visible: user?.role !== "viewer" },
       { label: t("createTemplateAction"), icon: "layout", href: "/template/new", visible: user?.role === "admin" },
     ].filter((item) => item.visible !== false),
