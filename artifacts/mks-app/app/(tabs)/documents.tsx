@@ -19,11 +19,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { RoleGate } from "@/components/RoleGate";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { sortDocuments, type DocumentSortMode } from "@/lib/documentSorting";
-import { subscribeToDocuments } from "@/lib/firestore";
+import { type DocumentSortMode } from "@/lib/documentSorting";
+import { sortDocumentsForList } from "@/lib/documentListOrdering";
+import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
 import { getRegistryFieldDefinitions } from "@/lib/registry";
-import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
-import { Document, DocumentStatus } from "@/types";
+import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { Document, DocumentStatus, Template } from "@/types";
 import { useWindowDimensions } from "react-native";
 import * as XLSX from "xlsx";
 const STATUS_FILTERS: { label: string; value: string }[] = [
@@ -54,6 +55,7 @@ export default function DocumentsScreen() {
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [serviceFilter, setServiceFilter] = useState("All");
@@ -69,6 +71,19 @@ export default function DocumentsScreen() {
     return unsub;
   }, [isFirebaseReady]);
 
+  useEffect(() => {
+    if (!isFirebaseReady) {
+      setTemplates([]);
+      return;
+    }
+    const unsub = subscribeToTemplates(
+      (items) => setTemplates(items),
+      false,
+      () => setTemplates([]),
+    );
+    return unsub;
+  }, [isFirebaseReady]);
+
   const filtered = documents.filter((d) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -80,11 +95,14 @@ export default function DocumentsScreen() {
       d.scanSearchKey?.toLowerCase().includes(q) ||
       d.scanFileName?.toLowerCase().includes(q) ||
       Object.values(d.fields ?? {}).some((value) => value.toLowerCase().includes(q));
-    const matchService = serviceFilter === "All" || d.serviceType === serviceFilter;
+    const matchService = serviceFilter === "All" || resolveServiceTypeId(d.serviceType, serviceTypes) === serviceFilter;
     const matchStatus = statusFilter === "all" || d.status === statusFilter;
     return matchSearch && matchService && matchStatus;
   });
-  const sorted = useMemo(() => sortDocuments(filtered, sortMode), [filtered, sortMode]);
+  const sorted = useMemo(
+    () => sortDocumentsForList(filtered, { query: search, serviceType: serviceFilter, sortMode, templates, serviceTypes }),
+    [filtered, search, serviceFilter, sortMode, templates, serviceTypes],
+  );
   const serviceTypeOptions = useMemo(
     () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
     [activeServiceTypes, serviceTypes],

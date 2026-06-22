@@ -67,25 +67,27 @@ function compareSeat(left: Document, right: Document) {
   return compareStrings(String(leftSeat.number), String(rightSeat.number));
 }
 
+export function compareDocumentsByMode(left: Document, right: Document, mode: DocumentSortMode): number {
+  switch (mode) {
+    case "updated-asc":
+      return dateKey(left) - dateKey(right);
+    case "updated-desc":
+      return dateKey(right) - dateKey(left);
+    case "name-asc":
+      return compareStrings(nameKey(left), nameKey(right));
+    case "name-desc":
+      return compareStrings(nameKey(right), nameKey(left));
+    case "year-asc":
+      return yearKey(left) - yearKey(right);
+    case "year-desc":
+      return yearKey(right) - yearKey(left);
+    case "seat-asc":
+      return compareSeat(left, right);
+    default:
+      return 0;
+  }
+}
+
 export function sortDocuments(documents: Document[], mode: DocumentSortMode): Document[] {
-  return [...documents].sort((left, right) => {
-    switch (mode) {
-      case "updated-asc":
-        return dateKey(left) - dateKey(right);
-      case "updated-desc":
-        return dateKey(right) - dateKey(left);
-      case "name-asc":
-        return compareStrings(nameKey(left), nameKey(right));
-      case "name-desc":
-        return compareStrings(nameKey(right), nameKey(left));
-      case "year-asc":
-        return yearKey(left) - yearKey(right);
-      case "year-desc":
-        return yearKey(right) - yearKey(left);
-      case "seat-asc":
-        return compareSeat(left, right);
-      default:
-        return 0;
-    }
-  });
+  return [...documents].sort((left, right) => compareDocumentsByMode(left, right, mode));
 }

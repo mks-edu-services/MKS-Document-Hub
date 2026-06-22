@@ -19,10 +19,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
-import { sortDocuments, type DocumentSortMode } from "@/lib/documentSorting";
-import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
-import { subscribeToDocuments } from "@/lib/firestore";
-import { Document, FilterState } from "@/types";
+import { type DocumentSortMode } from "@/lib/documentSorting";
+import { sortDocumentsForList } from "@/lib/documentListOrdering";
+import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
+import { Document, FilterState, Template } from "@/types";
 
 const ACADEMIC_YEARS = ["All", "2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
 const STATUS_OPTIONS = ["All", "Active", "Draft", "Archived"];
@@ -105,6 +106,7 @@ export default function SearchScreen() {
 
   const [allDocs, setAllDocs] = useState<Document[]>([]);
   const [results, setResults] = useState<Document[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortMode, setSortMode] = useState<DocumentSortMode>("updated-desc");
@@ -143,6 +145,19 @@ export default function SearchScreen() {
     return unsub;
   }, [isFirebaseReady]);
 
+  useEffect(() => {
+    if (!isFirebaseReady) {
+      setTemplates([]);
+      return;
+    }
+    const unsub = subscribeToTemplates(
+      (items) => setTemplates(items),
+      false,
+      () => setTemplates([]),
+    );
+    return unsub;
+  }, [isFirebaseReady]);
+
   const filtered = useMemo(() => {
     const q = filters.searchQuery.toLowerCase();
     return allDocs.filter((d) => {
@@ -153,12 +168,13 @@ export default function SearchScreen() {
         d.school.toLowerCase().includes(q) ||
         d.agent.toLowerCase().includes(q) ||
         d.serviceType.toLowerCase().includes(q) ||
+        getServiceTypeLabelFromValue(language, d.serviceType, serviceTypes).toLowerCase().includes(q) ||
         d.templateName.toLowerCase().includes(q) ||
         d.scanSearchKey?.toLowerCase().includes(q) ||
         d.scanFileName?.toLowerCase().includes(q) ||
         (d.notes ?? "").toLowerCase().includes(q) ||
         Object.values(d.fields ?? {}).some((value) => value.toLowerCase().includes(q));
-      const matchService = filters.serviceType === "All" || d.serviceType === filters.serviceType;
+      const matchService = filters.serviceType === "All" || resolveServiceTypeId(d.serviceType, serviceTypes) === filters.serviceType;
       const matchSchool = !filters.school || d.school.toLowerCase().includes(filters.school.toLowerCase());
       const matchAgent = !filters.agent || d.agent.toLowerCase().includes(filters.agent.toLowerCase());
       const matchYear = filters.academicYear === "All" || d.academicYear === filters.academicYear;
@@ -175,8 +191,8 @@ export default function SearchScreen() {
   }, [allDocs, filters]);
 
   useEffect(() => {
-    setResults(sortDocuments(filtered, sortMode));
-  }, [filtered, sortMode]);
+    setResults(sortDocumentsForList(filtered, { query: filters.searchQuery, serviceType: filters.serviceType, sortMode, templates, serviceTypes }));
+  }, [filtered, filters.searchQuery, filters.serviceType, sortMode, templates, serviceTypes]);
 
   const activeFilterCount = [
     filters.serviceType !== "All",
