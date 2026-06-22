@@ -483,24 +483,30 @@ export default function DocumentDetailScreen() {
   );
   const showRegistryTable = isRegistryDocument(document);
   const preferredScanSource =
-    document.scanPreviewUrl ||
-    document.scanFileId ||
     document.scanFileUrl ||
-    document.driveFileId ||
     document.driveFileUrl ||
+    document.scanFileId ||
+    document.driveFileId ||
     "";
   const backendScanPreviewUrl = buildDrivePreviewUrl(preferredScanSource);
-  const scanThumbUrl =
+  const scanPreviewSource =
     backendScanPreviewUrl ||
-    document.scanPreviewUrl ||
+    (document.scanPreviewUrl &&
+    !document.scanPreviewUrl.includes("drive.google.com")
+      ? document.scanPreviewUrl
+      : "");
+  const scanThumbUrl =
     buildDriveThumbnailUrl(preferredScanSource) ||
+    buildDriveThumbnailUrl(document.scanPreviewUrl || "") ||
+    scanPreviewSource ||
     document.scanFileUrl ||
     document.driveFileUrl ||
     "";
   const scanFullUrl =
-    backendScanPreviewUrl ||
     buildDriveFullImageUrl(preferredScanSource) ||
+    buildDriveFullImageUrl(document.scanPreviewUrl || "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
+    scanPreviewSource ||
     document.scanFileUrl ||
     document.driveFileUrl ||
     scanThumbUrl;
@@ -510,8 +516,7 @@ export default function DocumentDetailScreen() {
     document.driveFileUrl ||
     "";
   const scanPreviewPageUrl =
-    backendScanPreviewUrl ||
-    document.scanPreviewUrl ||
+    scanPreviewSource ||
     buildDrivePreviewPageUrl(preferredScanSource) ||
     document.scanFileUrl ||
     document.driveFileUrl ||

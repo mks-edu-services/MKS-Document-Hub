@@ -425,6 +425,26 @@ This follow-up update focused on the case where a record already has a Google Dr
 
 - `pnpm --filter @workspace/mks-app typecheck`
 
+## 25) June 2026 Update — Drive Publicization and Preview Recovery
+
+This follow-up resolved the preview failure by making the saved Google Drive files readable by the app/browser and then rechecking a live registry detail page.
+
+### What changed
+
+- `scripts/publicize-drive-files.cjs` now supports configurable concurrency and retries so the Drive permission pass can complete within the available runtime.
+- The permission pass was rerun against Firestore-backed document records and successfully made `1257` Drive files public to `anyone`.
+- The registry detail page was rechecked in the browser after the permission pass, and the preview image now renders again for an affected certificate record.
+
+### Verification
+
+- `node .\scripts\publicize-drive-files.cjs`
+- Browser verification on `/document/registry-2025-1zsErkSPx_H-H_MC3ULIHzs3_rsr5-M4z`
+
+### Notes
+
+- `25` Drive file IDs still failed with `404 File not found`; those appear to be stale references in Firestore and were skipped safely.
+- The latest web deploy after the preview-source ordering fix is `1782153251624000`.
+
 ## 23) June 2026 Update — Drive Preview Embed Fallback
 
 This update removes the embedded Google Drive preview iframe from the registry preview card when the app only has a raw `drive.google.com` preview URL, which was showing the `You need access` page in the card after the recent workbook import.
@@ -438,6 +458,21 @@ This update removes the embedded Google Drive preview iframe from the registry p
 ### Verification
 
 - `pnpm --filter @workspace/mks-app typecheck`
+
+## 24) June 2026 Update — Registry Preview Image Source Order
+
+This update removes raw Google Drive preview pages from the registry preview image source chain so the card favors an actual thumbnail/full image URL before any preview-page URL.
+
+### What changed
+
+- The document detail page now builds the registry preview image source from the Drive file URL / file ID first.
+- Raw `drive.google.com/.../preview` URLs are no longer treated as the first-choice image source.
+- The preview card still keeps a preview-page URL for open/download actions, but the visible card now prefers an actual image URL.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
 
 ## 22) June 2026 Update — Combined Certificate Workbook Import
 

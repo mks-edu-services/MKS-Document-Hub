@@ -14,6 +14,8 @@ const serviceAccountPath =
   defaultServiceAccountPath;
 const collectionId = process.env.FIRESTORE_COLLECTION || "documents";
 const limit = Number(process.env.LIMIT || "0") || null;
+const concurrency = Math.max(1, Number(process.env.CONCURRENCY || "8") || 8);
+const retries = Math.max(0, Number(process.env.RETRIES || "3") || 3);
 const dryRun =
   process.argv.includes("--dry-run") ||
   process.env.DRY_RUN === "1" ||
@@ -53,20 +55,28 @@ async function main() {
 
   let granted = 0;
   let skipped = 0;
-  for (const fileId of ids) {
-    try {
-      const changed = await makePublic(driveToken, fileId);
-      if (changed) {
-        granted += 1;
-        console.log(`public: ${fileId}`);
-      } else {
-        skipped += 1;
-        console.log(`already-public-or-shared: ${fileId}`);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, ids.length) }, async () => {
+    while (cursor < ids.length) {
+      const currentIndex = cursor++;
+      const fileId = ids[currentIndex];
+      if (!fileId) continue;
+      try {
+        const changed = await retry(() => makePublic(driveToken, fileId), retries);
+        if (changed) {
+          granted += 1;
+          console.log(`public: ${fileId}`);
+        } else {
+          skipped += 1;
+          console.log(`already-public-or-shared: ${fileId}`);
+        }
+      } catch (error) {
+        console.error(`failed: ${fileId} — ${error instanceof Error ? error.message : error}`);
       }
-    } catch (error) {
-      console.error(`failed: ${fileId} — ${error instanceof Error ? error.message : error}`);
     }
-  }
+  });
+
+  await Promise.all(workers);
 
   console.log("");
   console.log(`Completed. granted=${granted}, skipped=${skipped}, total=${ids.length}`);
@@ -229,4 +239,24 @@ async function makePublic(accessToken, fileId) {
   }
 
   throw new Error(`Drive permission update failed (${response.status}): ${text}`);
+}
+
+async function retry(fn, attempts) {
+  let lastError;
+  for (let attempt = 0; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      const transient =
+        /429|5\d\d|rate|quota|timeout|tempor/i.test(message) || message.includes("fetch failed");
+      if (!transient || attempt === attempts) {
+        throw error;
+      }
+      const delay = 500 * 2 ** attempt;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
 }
