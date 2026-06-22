@@ -671,3 +671,39 @@ This update adds a dedicated template library route and template-scoped workbook
 ### Validation
 
 - `pnpm --filter @workspace/mks-app typecheck`
+
+## 22) June 2026 Update — Generic Workbook Replace/Append Flow
+
+This follow-up makes the workbook flow reusable for any template, so future templates automatically export/import/update using their own column headers without needing another manual script change.
+
+### What changed
+
+- Added a template-agnostic workbook matcher in `artifacts/mks-app/lib/templateWorkbook.ts`.
+- Workbook export now preserves every template field column in the same order the template defines.
+- Workbook import now supports two explicit modes on `/template/[id]`:
+  - `Replace / Update` updates existing records when `app_document_id` or the workbook signature matches.
+  - `Append New` creates new records from every non-empty row.
+- The workbook payload builder now derives document fields from the active template definition instead of hardcoding one certificate layout.
+- Empty workbook rows are skipped, and ambiguous signature collisions are reported as skipped rows instead of silently overwriting data.
+
+### Last successful process to remember
+
+1. Open the template in `/template/[id]`.
+2. Export either a blank workbook or the existing records workbook.
+3. Fill or update the sheet using the exact template column headers.
+4. Import the file back using `Replace / Update` when you want to sync existing rows.
+5. Switch to `Append New` only when you want every workbook row to become a new record.
+
+### Result
+
+- The app can now handle template workbook export/import/update directly in the UI without needing ad hoc manual mapping for each new template.
+- Any future template added through the template editor will reuse the same workbook pipeline automatically because the sheet columns are derived from the template’s `fields` array.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful live deploy after this workbook update is `1782157015414000`.

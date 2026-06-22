@@ -3,6 +3,24 @@ import type { Document, Template, TemplateField } from "@/types";
 import { extractDriveFileId, normalizeDriveFileUrl } from "./driveUpload";
 
 export type TemplateWorkbookRow = Record<string, string>;
+export type TemplateWorkbookImportMode = "replace" | "append";
+
+export type TemplateWorkbookImportDecision = {
+  action: "create" | "update" | "skip";
+  documentId?: string;
+  payload: Partial<Document>;
+  reason?: string;
+  row: TemplateWorkbookRow;
+};
+
+export type TemplateWorkbookImportSummary = {
+  total: number;
+  matched: number;
+  updated: number;
+  created: number;
+  skipped: number;
+  ambiguous: number;
+};
 
 type WorkbookColumn = {
   key: string;
@@ -60,6 +78,28 @@ function normalizeKey(value: unknown): string {
 
 function getFieldLabel(field: TemplateField): string {
   return field.labelMy || field.labelEn || field.label || field.id;
+}
+
+function getColumnValueKeys(column: WorkbookColumn): string[] {
+  if (column.kind === "custom" && column.fieldId) {
+    return [column.fieldId, `custom_${column.fieldId}`, column.header];
+  }
+  return [column.key, column.header];
+}
+
+function readRowValue(row: Record<string, unknown>, column: WorkbookColumn): string {
+  for (const key of getColumnValueKeys(column)) {
+    const value = normalizeText(row[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function hasWorkbookRowContent(template: Template, row: Record<string, unknown>): boolean {
+  return getTemplateWorkbookColumns(template).some((column) => {
+    if (column.key === "row_status") return false;
+    return readRowValue(row, column).length > 0;
+  });
 }
 
 function buildCustomColumns(template: Template): WorkbookColumn[] {
@@ -281,4 +321,173 @@ export function parseTemplateWorkbookRows(workbookBuffer: ArrayBuffer, template:
 export function buildTemplateWorkbookDownloadName(template: Template, suffix: string) {
   const safeName = template.name.replace(/[\\/:*?"<>|]+/g, "_").trim() || template.id;
   return `${safeName}_${suffix}.xlsx`;
+}
+
+export function buildTemplateWorkbookDocumentPayload(
+  template: Template,
+  row: Record<string, unknown>,
+): Partial<Document> {
+  const customFields = Object.fromEntries(
+    template.fields.map((field) => [
+      field.id,
+      readRowValue(row, {
+        key: `custom_${field.id}`,
+        header: getFieldLabel(field),
+        label: getFieldLabel(field),
+        width: 0,
+        kind: "custom",
+        fieldId: field.id,
+      }),
+    ]),
+  );
+
+  const seatPrefix = normalizeText(row.seat_prefix);
+  const certificateNo = normalizeText(row.certificate_no);
+  const seatNo = normalizeText(row.seat_no) || [seatPrefix, certificateNo].filter(Boolean).join(" ").trim();
+  const academicYear = normalizeText(row.academic_year) || normalizeText(row.year);
+  const studentName = normalizeText(row.student_name) || normalizeText(row.title) || template.name;
+  const title =
+    normalizeText(row.title) ||
+    [seatNo, academicYear ? `(${academicYear})` : "", studentName].filter(Boolean).join(" ").trim() ||
+    template.name;
+
+  const driveLink = normalizeText(row.drive_link);
+  const driveFileId = normalizeText(row.drive_file_id) || extractDriveFileId(driveLink);
+  const syncState: "synced" | "pending" = driveLink || driveFileId ? "synced" : "pending";
+
+  return {
+    title,
+    templateId: template.id,
+    templateName: template.name,
+    serviceType: template.serviceType,
+    fields: customFields,
+    index: normalizeText(row.index) || undefined,
+    year: normalizeText(row.year) || academicYear || undefined,
+    seatPrefix: seatPrefix || undefined,
+    seatNo: seatNo || undefined,
+    seatNumber: seatNo || undefined,
+    certificateNo: certificateNo || undefined,
+    studentName,
+    fatherName: normalizeText(row.father_name) || undefined,
+    township: normalizeText(row.township) || undefined,
+    submittedBy: normalizeText(row.submitted_by) || undefined,
+    submittedDate: normalizeText(row.submitted_date) || undefined,
+    receivedDate: normalizeText(row.received_date) || undefined,
+    returnedDate: normalizeText(row.returned_date) || undefined,
+    issuedBy: normalizeText(row.issued_by) || undefined,
+    school: normalizeText(row.school) || undefined,
+    academicYear: academicYear || undefined,
+    agent: normalizeText(row.agent) || undefined,
+    date: normalizeText(row.date) || undefined,
+    status: (normalizeText(row.status) || "active") as Document["status"],
+    driveFileId: driveFileId || undefined,
+    driveFileUrl: driveLink || undefined,
+    driveFileName: normalizeText(row.drive_file_name) || undefined,
+    driveFolderLink: normalizeText(row.drive_folder_link) || undefined,
+    driveFolderPath: normalizeText(row.drive_folder_path) || undefined,
+    driveMatchMethod: normalizeText(row.match_method) || undefined,
+    driveMatchConfidence: normalizeText(row.match_confidence) ? Number(normalizeText(row.match_confidence)) : undefined,
+    notes: normalizeText(row.notes) || undefined,
+    driveSyncStatus: syncState,
+    driveSyncedAt: syncState === "synced" ? new Date().toISOString() : undefined,
+    driveSyncError: undefined,
+  };
+}
+
+export function buildTemplateWorkbookRowSignature(template: Template, row: Record<string, unknown>): string {
+  const excluded = new Set([
+    "row_status",
+    "template_id",
+    "template_name",
+    "app_document_id",
+    "drive_link",
+    "drive_file_id",
+    "drive_file_name",
+    "drive_folder_link",
+    "drive_folder_path",
+    "match_method",
+    "match_confidence",
+  ]);
+
+  return getTemplateWorkbookColumns(template)
+    .filter((column) => !excluded.has(column.key))
+    .map((column) => `${column.key}:${readRowValue(row, column)}`)
+    .filter((segment) => !segment.endsWith(":"))
+    .join("|");
+}
+
+export function buildTemplateWorkbookImportPlan(
+  template: Template,
+  rows: TemplateWorkbookRow[],
+  existingDocuments: Document[],
+  mode: TemplateWorkbookImportMode = "replace",
+): { plan: TemplateWorkbookImportDecision[]; summary: TemplateWorkbookImportSummary } {
+  const existingById = new Map(existingDocuments.map((document) => [document.id, document]));
+  const existingBySignature = new Map<string, Document>();
+  const ambiguousSignatures = new Set<string>();
+
+  for (const document of existingDocuments) {
+    const signature = buildTemplateWorkbookRowSignature(template, buildTemplateWorkbookRow(document, template));
+    if (!signature) continue;
+    if (existingBySignature.has(signature)) {
+      ambiguousSignatures.add(signature);
+      continue;
+    }
+    existingBySignature.set(signature, document);
+  }
+
+  const plan: TemplateWorkbookImportDecision[] = [];
+  const summary: TemplateWorkbookImportSummary = {
+    total: 0,
+    matched: 0,
+    updated: 0,
+    created: 0,
+    skipped: 0,
+    ambiguous: 0,
+  };
+
+  for (const row of rows) {
+    summary.total += 1;
+    if (!hasWorkbookRowContent(template, row)) {
+      summary.skipped += 1;
+      plan.push({ action: "skip", payload: {} as Partial<Document>, reason: "empty_row", row });
+      continue;
+    }
+
+    const payload = buildTemplateWorkbookDocumentPayload(template, row);
+    if (mode === "append") {
+      summary.created += 1;
+      plan.push({ action: "create", payload, row, reason: "append_mode" });
+      continue;
+    }
+
+    const appDocumentId = normalizeText(row.app_document_id);
+    if (appDocumentId && existingById.has(appDocumentId)) {
+      summary.matched += 1;
+      summary.updated += 1;
+      plan.push({ action: "update", documentId: appDocumentId, payload, row, reason: "app_document_id" });
+      continue;
+    }
+
+    const signature = buildTemplateWorkbookRowSignature(template, row);
+    if (signature && ambiguousSignatures.has(signature)) {
+      summary.ambiguous += 1;
+      summary.skipped += 1;
+      plan.push({ action: "skip", payload, row, reason: "ambiguous_signature" });
+      continue;
+    }
+
+    const matchedDocument = signature ? existingBySignature.get(signature) : null;
+    if (matchedDocument) {
+      summary.matched += 1;
+      summary.updated += 1;
+      plan.push({ action: "update", documentId: matchedDocument.id, payload, row, reason: "row_signature" });
+      continue;
+    }
+
+    summary.created += 1;
+    plan.push({ action: "create", payload, row, reason: "new_row" });
+  }
+
+  return { plan, summary };
 }

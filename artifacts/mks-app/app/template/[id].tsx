@@ -24,9 +24,11 @@ import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { createDocument, getDocuments, getTemplate, updateDocument, updateTemplate } from "@/lib/firestore";
 import {
   buildTemplateWorkbookDownloadName,
+  buildTemplateWorkbookImportPlan,
   buildTemplateWorkbookRows,
   createTemplateWorkbook,
   parseTemplateWorkbookRows,
+  type TemplateWorkbookImportMode,
 } from "@/lib/templateWorkbook";
 import { FieldType, Template, TemplateField } from "@/types";
 import * as XLSX from "xlsx";
@@ -79,6 +81,7 @@ export default function EditTemplateScreen() {
   const [saving, setSaving] = useState(false);
   const [exportingWorkbook, setExportingWorkbook] = useState(false);
   const [importingWorkbook, setImportingWorkbook] = useState(false);
+  const [importMode, setImportMode] = useState<TemplateWorkbookImportMode>("replace");
 
   useEffect(() => {
     if (serviceType) return;
@@ -213,106 +216,36 @@ export default function EditTemplateScreen() {
         const rows = parseTemplateWorkbookRows(buffer, { ...template, fields });
         const documents = await getDocuments();
         const templateDocuments = documents.filter((doc) => doc.templateId === template.id);
-        const docsById = new Map(templateDocuments.map((doc) => [doc.id, doc]));
-        const docsByKey = new Map<string, Template>();
-        const rowsToUpdate = new Map<string, any>();
-
-        const normalize = (value: unknown) => String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-
-        const findMatchKey = (row: Record<string, string>) => {
-          const appDocumentId = normalize(row.app_document_id);
-          if (appDocumentId && docsById.has(appDocumentId)) return { type: "id" as const, key: appDocumentId };
-          const seat = normalize(row.seat_no || [row.seat_prefix, row.certificate_no].filter(Boolean).join(" "));
-          const name = normalize(row.student_name);
-          const year = normalize(row.academic_year || row.year);
-          const key = [seat, name, year].filter(Boolean).join("|");
-          if (!key) return null;
-          return { type: "lookup" as const, key };
-        };
-
+        const { plan } = buildTemplateWorkbookImportPlan({ ...template, fields }, rows, templateDocuments, importMode);
         let updated = 0;
         let created = 0;
         let skipped = 0;
+        let ambiguous = 0;
 
-        for (const row of rows) {
-          const customFieldValues = Object.fromEntries(
-            fields.map((field) => [field.id, String(row[field.labelMy || field.labelEn || field.label || field.id] ?? row[field.id] ?? "").trim()]),
-          );
-          const driveLink = String(row.drive_link ?? "").trim();
-          const driveFileId = String(row.drive_file_id ?? "").trim() || (driveLink ? driveLink.match(/[?&]id=([a-zA-Z0-9_-]+)/)?.[1] ?? "" : "");
-          const seatPrefix = String(row.seat_prefix ?? "").trim();
-          const certificateNo = String(row.certificate_no ?? "").trim();
-          const seatNo = String(row.seat_no ?? [seatPrefix, certificateNo].filter(Boolean).join(" ")).trim();
-          const studentName = String(row.student_name ?? customFieldValues.name ?? "").trim();
-          const academicYear = String(row.academic_year ?? row.year ?? "").trim();
-          const title =
-            String(row.title ?? "").trim() ||
-            [seatNo, academicYear ? `(${academicYear})` : ""].filter(Boolean).join(" ").trim() + (studentName ? ` - ${studentName}` : "");
-          const match = findMatchKey(row);
-          const payload = {
-            title: title || template.name,
-            templateId: template.id,
-            templateName: template.name,
-            serviceType: template.serviceType,
-            fields: customFieldValues,
-            index: String(row.index ?? "").trim(),
-            year: String(row.year ?? academicYear ?? "").trim(),
-            seatPrefix: seatPrefix || undefined,
-            seatNo: seatNo || undefined,
-            seatNumber: seatNo || undefined,
-            certificateNo: certificateNo || undefined,
-            studentName: studentName || seatNo || title || template.name,
-            fatherName: String(row.father_name ?? "").trim() || undefined,
-            township: String(row.township ?? "").trim() || undefined,
-            submittedBy: String(row.submitted_by ?? "").trim() || undefined,
-            submittedDate: String(row.submitted_date ?? "").trim() || undefined,
-            receivedDate: String(row.received_date ?? "").trim() || undefined,
-            returnedDate: String(row.returned_date ?? "").trim() || undefined,
-            issuedBy: String(row.issued_by ?? "").trim() || undefined,
-            school: String(row.school ?? "").trim() || undefined,
-            academicYear: academicYear || undefined,
-            agent: String(row.agent ?? "").trim() || undefined,
-            date: String(row.date ?? "").trim() || undefined,
-            status: String(row.status ?? "active").trim() || "active",
-            driveFileId: driveFileId || undefined,
-            driveFileUrl: driveLink || undefined,
-            driveFileName: String(row.drive_file_name ?? "").trim() || undefined,
-            driveFolderLink: String(row.drive_folder_link ?? "").trim() || undefined,
-            driveFolderPath: String(row.drive_folder_path ?? "").trim() || undefined,
-            driveMatchMethod: String(row.match_method ?? "").trim() || undefined,
-            driveMatchConfidence: row.match_confidence ? Number(row.match_confidence) : undefined,
-            notes: String(row.notes ?? "").trim() || undefined,
-            driveSyncStatus: driveLink || driveFileId ? "synced" : "pending",
-            driveSyncedAt: driveLink || driveFileId ? new Date().toISOString() : undefined,
-            driveSyncError: undefined,
-          } as const;
+        for (const item of plan) {
+          if (item.action === "skip") {
+            skipped += 1;
+            if (item.reason === "ambiguous_signature") {
+              ambiguous += 1;
+            }
+            continue;
+          }
 
-          if (match?.type === "id") {
-            await updateDocument(match.key, payload as any);
+          if (item.action === "update" && item.documentId) {
+            await updateDocument(item.documentId, item.payload as any);
             updated += 1;
             continue;
           }
 
-          const existing = match ? templateDocuments.find((doc) => {
-            const seat = normalize(doc.seatNo ?? doc.seatNumber ?? "");
-            const name = normalize(doc.studentName ?? "");
-            const year = normalize(doc.academicYear ?? doc.year ?? "");
-            return [seat, name, year].filter(Boolean).join("|") === match.key;
-          }) : null;
-
-          if (existing) {
-            await updateDocument(existing.id, payload as any);
-            updated += 1;
-            continue;
+          if (item.action === "create") {
+            await createDocument(item.payload as any);
+            created += 1;
           }
-
-          await createDocument(payload as any);
-          created += 1;
         }
 
         Alert.alert(
           t("driveTools"),
-          `Import ပြီးပါပြီ\nUpdated: ${updated}\nCreated: ${created}\nSkipped: ${skipped}`,
+          `Import ပြီးပါပြီ\nUpdated: ${updated}\nCreated: ${created}\nSkipped: ${skipped}\nAmbiguous: ${ambiguous}`,
         );
       } catch (error: any) {
         Alert.alert(t("error"), error?.message ?? "Workbook import မလုပ်နိုင်ပါ။");
@@ -396,7 +329,42 @@ export default function EditTemplateScreen() {
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>Excel Workbook</Text>
           <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
-            ဒီ template ရဲ့ record columns အကုန်ပါအောင် blank template / export / import လုပ်နိုင်ပါတယ်။
+            ဒီ template ရဲ့ record columns အကုန်ပါအောင် blank template / export / import / update လုပ်နိုင်ပါတယ်။
+          </Text>
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              onPress={() => setImportMode("replace")}
+              style={[
+                styles.modeChip,
+                {
+                  backgroundColor: importMode === "replace" ? colors.primary : colors.muted,
+                  borderColor: importMode === "replace" ? colors.primary : colors.border,
+                },
+              ]}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.modeChipText, { color: importMode === "replace" ? "#fff" : colors.foreground }]}>
+                Replace / Update
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setImportMode("append")}
+              style={[
+                styles.modeChip,
+                {
+                  backgroundColor: importMode === "append" ? colors.primary : colors.muted,
+                  borderColor: importMode === "append" ? colors.primary : colors.border,
+                },
+              ]}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.modeChipText, { color: importMode === "append" ? "#fff" : colors.foreground }]}>
+                Append New
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.tipText, { color: colors.mutedForeground }]}>
+            Replace mode က app_document_id / row key ကိုသုံးပြီး ရှိပြီးသား record ကို update လုပ်မယ်။ Append mode က record အသစ်အဖြစ်ထပ်ထည့်မယ်။
           </Text>
           <View style={styles.workbookActions}>
             <TouchableOpacity
@@ -428,7 +396,9 @@ export default function EditTemplateScreen() {
               activeOpacity={0.85}
             >
               {importingWorkbook ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="upload" size={16} color="#fff" />}
-              <Text style={[styles.workbookBtnText, { color: "#fff" }]}>Import Workbook</Text>
+              <Text style={[styles.workbookBtnText, { color: "#fff" }]}>
+                {importMode === "replace" ? "Import Workbook" : "Append Workbook"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -527,6 +497,9 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: "600" },
   toggleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   workbookActions: { gap: 8 },
+  modeRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  modeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  modeChipText: { fontSize: 12, fontWeight: "700" },
   workbookBtn: {
     flexDirection: "row",
     alignItems: "center",
