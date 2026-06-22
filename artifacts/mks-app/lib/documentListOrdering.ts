@@ -81,7 +81,7 @@ function getSearchRank(document: Document, query: string) {
   const compactQuery = compactSearchText(query);
   if (!normalizedQuery || !compactQuery) return null;
 
-  let best: { bucket: number; weight: number; position: number; length: number } | null = null;
+  let best: { bucket: number; position: number; weight: number; length: number } | null = null;
 
   for (const candidate of searchCandidates(document)) {
     const text = normalizeSearchText(candidate.value);
@@ -110,13 +110,13 @@ function getSearchRank(document: Document, query: string) {
 
     if (bucket === null) continue;
 
-    const score = { bucket, weight: candidate.weight, position, length: text.length || compact.length };
+    const score = { bucket, position, weight: candidate.weight, length: text.length || compact.length };
     if (
       !best ||
       score.bucket < best.bucket ||
-      (score.bucket === best.bucket && score.weight < best.weight) ||
-      (score.bucket === best.bucket && score.weight === best.weight && score.position < best.position) ||
-      (score.bucket === best.bucket && score.weight === best.weight && score.position === best.position && score.length < best.length)
+      (score.bucket === best.bucket && score.position < best.position) ||
+      (score.bucket === best.bucket && score.position === best.position && score.weight < best.weight) ||
+      (score.bucket === best.bucket && score.position === best.position && score.weight === best.weight && score.length < best.length)
     ) {
       best = score;
     }
@@ -132,8 +132,8 @@ function compareSearchRanks(left: Document, right: Document, query: string) {
   if (!leftRank) return 1;
   if (!rightRank) return -1;
   if (leftRank.bucket !== rightRank.bucket) return leftRank.bucket - rightRank.bucket;
-  if (leftRank.weight !== rightRank.weight) return leftRank.weight - rightRank.weight;
   if (leftRank.position !== rightRank.position) return leftRank.position - rightRank.position;
+  if (leftRank.weight !== rightRank.weight) return leftRank.weight - rightRank.weight;
   if (leftRank.length !== rightRank.length) return leftRank.length - rightRank.length;
   return 0;
 }
