@@ -53,6 +53,10 @@ export function RegistryCertificatePreview({
   const [imageSource, setImageSource] = useState(
     thumbnailUrl || fullImageUrl || "",
   );
+  const canEmbedPreview =
+    Platform.OS === "web" &&
+    Boolean(previewPageUrl) &&
+    !previewPageUrl?.includes("drive.google.com");
   const previewUnavailableLabel =
     activeLanguage === "en" ? "Preview unavailable" : "အစမ်းကြည့်မရသေးပါ";
   const previewActionLabel =
@@ -116,7 +120,7 @@ export function RegistryCertificatePreview({
         <View
           style={[styles.thumbColumn, compact && styles.thumbColumnCompact]}
         >
-          {Platform.OS === "web" && previewSource ? (
+          {canEmbedPreview && previewSource ? (
             <View
               style={[
                 styles.thumbFrame,
@@ -139,8 +143,16 @@ export function RegistryCertificatePreview({
             </View>
           ) : (
             <Pressable
-              onPress={onPressThumbnail}
-              disabled={!onPressThumbnail && !fullImageUrl}
+              onPress={() => {
+                if (onPressThumbnail) {
+                  onPressThumbnail();
+                  return;
+                }
+                if (previewSource) {
+                  Linking.openURL(previewSource);
+                }
+              }}
+              disabled={!onPressThumbnail && !previewSource}
               style={[
                 styles.thumbFrame,
                 { borderColor: colors.border, backgroundColor: colors.muted },

@@ -425,6 +425,20 @@ This follow-up update focused on the case where a record already has a Google Dr
 
 - `pnpm --filter @workspace/mks-app typecheck`
 
+## 23) June 2026 Update — Drive Preview Embed Fallback
+
+This update removes the embedded Google Drive preview iframe from the registry preview card when the app only has a raw `drive.google.com` preview URL, which was showing the `You need access` page in the card after the recent workbook import.
+
+### What changed
+
+- `RegistryCertificatePreview` now only uses an iframe when the preview URL is a backend or same-origin preview source.
+- When the preview URL points directly at Google Drive, the card falls back to the image/pressable preview path instead of embedding the access page.
+- Clicking the preview area still opens the available preview source or file link, and the download button remains available.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+
 ## 22) June 2026 Update — Combined Certificate Workbook Import
 
 This update imported the two Google-Link Excel workbooks from `D:\MKS\Photo Edititor\G12 Photo\Data\` into the live certificate registry so the `အောင်လက်မှတ်` template records now reflect the latest links and metadata updates.
