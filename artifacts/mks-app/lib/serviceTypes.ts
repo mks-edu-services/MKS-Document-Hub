@@ -64,14 +64,46 @@ export function normalizeServiceTypeLabel(
   );
 }
 
+function normalizeServiceTypeKey(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+export function resolveServiceTypeId(value?: string | null, serviceTypes: ServiceType[] = []): string {
+  const normalizedValue = normalizeServiceTypeKey(value);
+  if (!normalizedValue) return "";
+
+  const matched =
+    serviceTypes.find((serviceType) =>
+      [serviceType.id, serviceType.label, serviceType.labelMy, serviceType.labelEn]
+        .filter(Boolean)
+        .some((candidate) => normalizeServiceTypeKey(candidate) === normalizedValue),
+    ) ??
+    DEFAULT_SERVICE_TYPES.find((serviceType) =>
+      [serviceType.id, serviceType.label, serviceType.labelMy, serviceType.labelEn]
+        .filter(Boolean)
+        .some((candidate) => normalizeServiceTypeKey(candidate) === normalizedValue),
+    );
+
+  return matched?.id ?? String(value).trim();
+}
+
 export function getServiceTypeLabelFromValue(
   language: LanguageCode,
   value: string,
   serviceTypes: ServiceType[] = [],
 ): string {
-  const matched = serviceTypes.find((serviceType) => serviceType.id === value);
+  const normalizedValue = normalizeServiceTypeKey(value);
+  const matched = serviceTypes.find((serviceType) =>
+    [serviceType.id, serviceType.label, serviceType.labelMy, serviceType.labelEn]
+      .filter(Boolean)
+      .some((candidate) => normalizeServiceTypeKey(candidate) === normalizedValue),
+  );
   if (matched) return normalizeServiceTypeLabel(language, matched);
-  const fallback = DEFAULT_SERVICE_TYPES.find((serviceType) => serviceType.id === value);
+  const fallback = DEFAULT_SERVICE_TYPES.find((serviceType) =>
+    [serviceType.id, serviceType.label, serviceType.labelMy, serviceType.labelEn]
+      .filter(Boolean)
+      .some((candidate) => normalizeServiceTypeKey(candidate) === normalizedValue),
+  );
   if (fallback) return normalizeServiceTypeLabel(language, fallback);
   return value;
 }

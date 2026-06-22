@@ -27,7 +27,7 @@ import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { getRegistryDisplayTitle, getRegistryFieldDefinitions } from "@/lib/registry";
 import { Document, Template } from "@/types";
 import { getDocument } from "@/lib/firestore";
-import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
+import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
 
 const ACADEMIC_YEARS = ["2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
 const FIELD_TYPE_HINTS = {
@@ -181,14 +181,14 @@ export default function NewDocumentScreen() {
       notes: doc.notes ?? "",
       driveFileUrl: doc.driveFileUrl ?? "",
       templateId: doc.templateId ?? "",
-      serviceType: doc.serviceType ?? "",
+      serviceType: resolveServiceTypeId(doc.serviceType ?? "", serviceTypes),
       fields: { ...(doc.fields ?? {}) },
     };
   }
 
   useEffect(() => {
     (async () => {
-      const tmps = await getTemplates().catch(() => []);
+      const tmps = await getTemplates(false).catch(() => []);
       setTemplates(tmps);
       if (params.id) {
         const existing = await getDocument(params.id).catch(() => null);
@@ -217,7 +217,7 @@ export default function NewDocumentScreen() {
   useEffect(() => {
     if (form.serviceType) return;
     const preferredServiceType =
-      selectedTemplate?.serviceType ||
+      resolveServiceTypeId(selectedTemplate?.serviceType ?? "", serviceTypes) ||
       activeServiceTypes[0]?.id ||
       serviceTypes[0]?.id ||
       "";
@@ -229,9 +229,12 @@ export default function NewDocumentScreen() {
   useEffect(() => {
     if (!form.serviceType || templates.length === 0) return;
 
-    const matchingTemplates = templates.filter((template) => template.serviceType === form.serviceType);
+    const selectedServiceTypeId = resolveServiceTypeId(form.serviceType, serviceTypes);
+    const matchingTemplates = templates.filter(
+      (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === selectedServiceTypeId,
+    );
     if (matchingTemplates.length === 0) {
-      if (selectedTemplate?.serviceType !== form.serviceType) {
+      if (resolveServiceTypeId(selectedTemplate?.serviceType ?? "", serviceTypes) !== selectedServiceTypeId) {
         setSelectedTemplate(null);
         setForm((current) => ({ ...current, templateId: "" }));
       }
@@ -256,7 +259,7 @@ export default function NewDocumentScreen() {
     setForm((f) => ({
       ...f,
       templateId: tmpl.id,
-      serviceType: tmpl.serviceType,
+      serviceType: resolveServiceTypeId(tmpl.serviceType, serviceTypes),
       title: f.title || tmpl.name,
       fields: Object.fromEntries(tmpl.fields.map((field) => [field.id, f.fields[field.id] ?? ""])),
     }));
@@ -283,8 +286,11 @@ export default function NewDocumentScreen() {
     })(),
   );
 
-  const selectedServiceTypeLabel = getServiceTypeLabelFromValue(language, form.serviceType, serviceTypes);
-  const matchingTemplates = templates.filter((template) => template.serviceType === form.serviceType);
+  const selectedServiceTypeId = resolveServiceTypeId(form.serviceType, serviceTypes);
+  const selectedServiceTypeLabel = getServiceTypeLabelFromValue(language, selectedServiceTypeId, serviceTypes);
+  const matchingTemplates = templates.filter(
+    (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === selectedServiceTypeId,
+  );
 
   function syncRegistryField(id: string, value: string) {
     setForm((current) => {
