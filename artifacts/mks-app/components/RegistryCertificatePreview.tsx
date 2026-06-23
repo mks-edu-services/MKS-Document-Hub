@@ -13,13 +13,14 @@ import {
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { getRegistryFieldLabel } from "@/lib/registry";
-import type { LanguageCode } from "@/types";
+import type { FieldType, LanguageCode } from "@/types";
 
 type RegistryField = {
   id: string;
-  labelMy: string;
-  labelEn: string;
-  type: "text" | "date" | "number" | "textarea";
+  label?: string;
+  labelMy?: string;
+  labelEn?: string;
+  type: FieldType;
 };
 
 type Props = {
@@ -86,7 +87,7 @@ export function RegistryCertificatePreview({
         <View style={styles.rowsColumn}>
           {fields.map((field) => {
             const label = getRegistryFieldLabel(field.id, activeLanguage, {
-              label: field.labelEn,
+              label: field.label ?? "",
               labelMy: field.labelMy,
               labelEn: field.labelEn,
             });

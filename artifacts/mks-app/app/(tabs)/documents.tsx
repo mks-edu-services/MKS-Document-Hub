@@ -157,8 +157,8 @@ function getLocalizedTemplateSortLabel(
     const field = template?.fields.find((item) => item.id === fieldId);
     if (field) {
       return isEnglish
-        ? field.labelEn || field.labelMy || field.label || field.id
-        : field.labelMy || field.labelEn || field.label || field.id;
+        ? field.label || field.labelEn || field.labelMy || field.id
+        : field.label || field.labelMy || field.labelEn || field.id;
     }
   }
 

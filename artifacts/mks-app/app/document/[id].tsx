@@ -31,7 +31,7 @@ import {
   getRegistryDocumentFieldValue,
   isRegistryDocument,
 } from "@/lib/registry";
-import { deleteDocument, getDocument, updateDocument } from "@/lib/firestore";
+import { deleteDocument, getDocument, getTemplate, updateDocument } from "@/lib/firestore";
 import {
   buildDriveFullImageUrl,
   buildDriveDownloadUrl,
@@ -45,7 +45,7 @@ import {
   uploadDocumentToDrive,
   type DriveHealthState,
 } from "@/lib/driveUpload";
-import { Document, DocumentStatus } from "@/types";
+import { Document, DocumentStatus, TemplateField } from "@/types";
 
 const statusConfig: Record<
   DocumentStatus,
@@ -182,19 +182,38 @@ export default function DocumentDetailScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [driveHealth, setDriveHealth] = useState<DriveHealthState | null>(null);
   const [driveLinkDraft, setDriveLinkDraft] = useState("");
   const [savingDriveLink, setSavingDriveLink] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      getDocument(id)
-        .then((doc) => {
-          setDocument(normalizeDocument(doc));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getDocument(id);
+        const normalized = normalizeDocument(doc);
+        if (cancelled) return;
+        setDocument(normalized);
+        if (normalized?.templateId) {
+          try {
+            const tmpl = await getTemplate(normalized.templateId);
+            if (cancelled) return;
+            setTemplateFields(tmpl?.fields ?? []);
+          } catch {
+            if (!cancelled) setTemplateFields([]);
+          }
+        } else if (!cancelled) {
+          setTemplateFields([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -474,7 +493,7 @@ export default function DocumentDetailScreen() {
         ? t("driveFailed")
         : t("drivePending");
   const displaySubtitle = document.fatherName || document.studentName;
-  const registryFields = getRegistryFieldDefinitions();
+  const registryFields = templateFields.length > 0 ? templateFields : getRegistryFieldDefinitions();
   const registryValues = Object.fromEntries(
     registryFields.map((field) => [
       field.id,

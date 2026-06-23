@@ -77,7 +77,7 @@ function normalizeKey(value: unknown): string {
 }
 
 function getFieldLabel(field: TemplateField): string {
-  return field.labelMy || field.labelEn || field.label || field.id;
+  return field.label || field.labelMy || field.labelEn || field.id;
 }
 
 function getColumnValueKeys(column: WorkbookColumn): string[] {
