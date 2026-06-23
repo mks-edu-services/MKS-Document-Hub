@@ -731,3 +731,26 @@ This follow-up makes the `/documents` sort area switch to the active template’
 ### Deployment note
 
 - The latest successful live deploy after this sort update is `1782193015208000`.
+
+## 24) June 2026 Update — Template Column Chips Restored in Sort By
+
+This follow-up fixes the `/documents` sort panel so service-specific views now show the actual template column headers as clickable chips instead of only a single “template order” note.
+
+### What changed
+
+- The sort UI now has two explicit branches:
+  - `အားလုံး` keeps the normal generic sort chips.
+  - any specific service type shows that template’s column headers as individual sort chips.
+- The template-specific sort comparator now uses the selected template field key directly.
+- The active template field key is reset cleanly when filters are cleared or when no matching template is available.
+- The sort panel now stays type-safe and no longer mixes generic sort labels with template field labels in one union list.
+
+### Expected result
+
+- When `ဝန်ဆောင်မှုအမျိုးအစား` is `အားလုံး`, the existing general sort options remain unchanged.
+- When a service type like `G12 အောင်လက်မှတ်` is selected, the sort area should show the actual template column headings for that service.
+- The selected chip should drive the ordering of the records in the list.
+
+### Validation
+
+- `C:\PythonProject\MKS-Document-Hub\artifacts\mks-app\node_modules\.bin\tsc.cmd -p tsconfig.json --noEmit`

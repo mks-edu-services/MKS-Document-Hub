@@ -48,6 +48,82 @@ function compareTemplateValues(left: unknown, right: unknown, type?: string) {
   return compareValueByType(left, right, type);
 }
 
+const TEMPLATE_SORT_BASE_FIELD_TYPES: Record<string, string> = {
+  index: "number",
+  year: "number",
+  submittedDate: "date",
+  receivedDate: "date",
+  returnedDate: "date",
+  date: "date",
+  driveMatchConfidence: "number",
+};
+
+function getDocumentSortFieldValue(document: Document, fieldKey: string) {
+  switch (fieldKey) {
+    case "index":
+      return document.index;
+    case "seatPrefix":
+      return document.seatPrefix;
+    case "certificateNo":
+      return document.certificateNo;
+    case "seatNo":
+      return document.seatNo ?? document.seatNumber;
+    case "seatNumber":
+      return document.seatNumber ?? document.seatNo;
+    case "year":
+      return document.year ?? document.academicYear;
+    case "studentName":
+      return document.studentName;
+    case "fatherName":
+      return document.fatherName;
+    case "township":
+      return document.township;
+    case "submittedBy":
+      return document.submittedBy;
+    case "submittedDate":
+      return document.submittedDate;
+    case "receivedDate":
+      return document.receivedDate;
+    case "returnedDate":
+      return document.returnedDate;
+    case "issuedBy":
+      return document.issuedBy;
+    case "school":
+      return document.school;
+    case "academicYear":
+      return document.academicYear;
+    case "agent":
+      return document.agent;
+    case "date":
+      return document.date;
+    case "status":
+      return document.status;
+    case "notes":
+      return document.notes;
+    default:
+      return document.fields?.[fieldKey] ?? getDocumentFieldValue(document, fieldKey);
+  }
+}
+
+function getTemplateSortFieldType(template: Template | undefined, fieldKey: string) {
+  if (TEMPLATE_SORT_BASE_FIELD_TYPES[fieldKey]) {
+    return TEMPLATE_SORT_BASE_FIELD_TYPES[fieldKey];
+  }
+  return template?.fields.find((field) => field.id === fieldKey)?.type;
+}
+
+function compareDocumentsByTemplateField(
+  left: Document,
+  right: Document,
+  fieldKey: string,
+  template?: Template,
+) {
+  const fieldType = getTemplateSortFieldType(template, fieldKey);
+  const leftValue = getDocumentSortFieldValue(left, fieldKey);
+  const rightValue = getDocumentSortFieldValue(right, fieldKey);
+  return compareTemplateValues(leftValue, rightValue, fieldType);
+}
+
 function getDocumentFieldValue(document: Document, fieldId: string) {
   return (document as unknown as Record<string, unknown>)[fieldId];
 }
@@ -164,6 +240,8 @@ export interface DocumentListOrderingOptions {
   query?: string;
   serviceType?: string;
   sortMode?: DocumentSortMode;
+  templateSortKey?: string;
+  template?: Template;
   templates?: Template[];
   serviceTypes?: ServiceType[];
 }
@@ -174,7 +252,9 @@ export function sortDocumentsForList(documents: Document[], options: DocumentLis
   const serviceTypeId = resolveServiceTypeId(options.serviceType, options.serviceTypes ?? []);
   const templatesById = Object.fromEntries((options.templates ?? []).map((template) => [template.id, template]));
   const shouldUseTemplateOrder = Boolean(serviceTypeId && serviceTypeId !== "All");
-  const effectiveSortMode = shouldUseTemplateOrder ? "template-order" : sortMode;
+  const templateSortKey = options.templateSortKey?.trim() ?? "";
+  const templateForSort = options.template;
+  const effectiveSortMode = shouldUseTemplateOrder && !templateSortKey ? "template-order" : sortMode;
 
   return [...documents].sort((left, right) => {
     if (query) {
@@ -182,7 +262,12 @@ export function sortDocumentsForList(documents: Document[], options: DocumentLis
       if (searchCompare !== 0) return searchCompare;
     }
 
-    if (shouldUseTemplateOrder) {
+    if (shouldUseTemplateOrder && templateSortKey) {
+      const templateFieldCompare = compareDocumentsByTemplateField(left, right, templateSortKey, templateForSort);
+      if (templateFieldCompare !== 0) return templateFieldCompare;
+    }
+
+    if (shouldUseTemplateOrder && !templateSortKey) {
       const templateCompare = compareByTemplateOrder(left, right, templatesById);
       if (templateCompare !== 0) return templateCompare;
     }

@@ -24,6 +24,7 @@ import { sortDocumentsForList } from "@/lib/documentListOrdering";
 import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
 import { getRegistryFieldDefinitions } from "@/lib/registry";
 import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { getTemplateWorkbookColumns } from "@/lib/templateWorkbook";
 import { Document, DocumentStatus, Template } from "@/types";
 import { useWindowDimensions } from "react-native";
 import * as XLSX from "xlsx";
@@ -43,6 +44,20 @@ const BASE_SORT_OPTIONS: Array<{ labelKey: "newestFirst" | "oldestFirst" | "name
   { labelKey: "seatAscending", value: "seat-asc" },
 ];
 
+const TEMPLATE_SORT_EXCLUDED_KEYS = new Set([
+  "row_status",
+  "template_id",
+  "template_name",
+  "app_document_id",
+  "drive_link",
+  "drive_file_id",
+  "drive_file_name",
+  "drive_folder_link",
+  "drive_folder_path",
+  "match_method",
+  "match_confidence",
+]);
+
 export default function DocumentsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -61,6 +76,7 @@ export default function DocumentsScreen() {
   const [serviceFilter, setServiceFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState<DocumentSortMode>("updated-desc");
+  const [templateSortKey, setTemplateSortKey] = useState("");
 
   useEffect(() => {
     if (!isFirebaseReady) { setLoading(false); return; }
@@ -100,21 +116,47 @@ export default function DocumentsScreen() {
     return matchSearch && matchService && matchStatus;
   });
   const useTemplateSort = serviceFilter !== "All";
-  const sortOptions = useMemo(
-    () =>
-      useTemplateSort
-        ? [{ labelKey: "templateOrderSort" as const, value: "template-order" as DocumentSortMode }]
-        : BASE_SORT_OPTIONS,
-    [useTemplateSort],
-  );
-  const effectiveSortMode: DocumentSortMode = useTemplateSort
-    ? "template-order"
-    : sortMode === "template-order"
-    ? "updated-desc"
-    : sortMode;
+  const selectedTemplate = useMemo(() => {
+    if (!useTemplateSort) return null;
+    const matchingTemplates = templates.filter((template) => resolveServiceTypeId(template.serviceType, serviceTypes) === serviceFilter);
+    if (matchingTemplates.length === 0) return null;
+    return [...matchingTemplates].sort((left, right) => {
+      if (left.active !== right.active) return left.active ? -1 : 1;
+      return String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? ""));
+    })[0];
+  }, [serviceFilter, serviceTypes, templates, useTemplateSort]);
+  const templateSortColumns = useMemo(() => {
+    if (!selectedTemplate) return [];
+    return getTemplateWorkbookColumns(selectedTemplate)
+      .filter((column) => !TEMPLATE_SORT_EXCLUDED_KEYS.has(column.key))
+      .map((column) => ({ key: column.key, label: column.label }));
+  }, [selectedTemplate]);
+  const effectiveSortMode: DocumentSortMode = sortMode === "template-order" ? "updated-desc" : sortMode;
+  const activeTemplateSortKey = templateSortColumns.some((column) => column.key === templateSortKey)
+    ? templateSortKey
+    : templateSortColumns[0]?.key ?? "";
+  useEffect(() => {
+    if (!useTemplateSort) {
+      if (templateSortKey) setTemplateSortKey("");
+      return;
+    }
+    if (templateSortColumns.length === 0) return;
+    if (!templateSortColumns.some((column) => column.key === templateSortKey)) {
+      setTemplateSortKey(templateSortColumns[0].key);
+    }
+  }, [serviceFilter, templateSortColumns, templateSortKey, useTemplateSort]);
   const sorted = useMemo(
-    () => sortDocumentsForList(filtered, { query: search, serviceType: serviceFilter, sortMode: effectiveSortMode, templates, serviceTypes }),
-    [filtered, search, serviceFilter, effectiveSortMode, templates, serviceTypes],
+    () =>
+      sortDocumentsForList(filtered, {
+        query: search,
+        serviceType: serviceFilter,
+        sortMode: effectiveSortMode,
+        templateSortKey: useTemplateSort ? activeTemplateSortKey : undefined,
+        template: selectedTemplate ?? undefined,
+        templates,
+        serviceTypes,
+      }),
+    [activeTemplateSortKey, effectiveSortMode, filtered, search, selectedTemplate, serviceFilter, serviceTypes, templates, useTemplateSort],
   );
   const serviceTypeOptions = useMemo(
     () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
@@ -137,6 +179,7 @@ export default function DocumentsScreen() {
     setServiceFilter("All");
     setStatusFilter("all");
     setSortMode("updated-desc");
+    setTemplateSortKey("");
   }
 
   async function exportXlsx() {
@@ -401,53 +444,71 @@ export default function DocumentsScreen() {
 
                 <View style={[styles.filterCard, isWide && styles.filterCardWide, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                   <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("sortBy")}</Text>
-                  {isWide ? (
-                    <View style={styles.filterWrap}>
-                      {sortOptions.map((option) => (
-                        <TouchableOpacity
-                          key={option.value}
-                          onPress={() => setSortMode(option.value)}
-                          style={[
-                            styles.sortChip,
-                            {
-                              backgroundColor: effectiveSortMode === option.value ? colors.accent : colors.card,
-                              borderColor: effectiveSortMode === option.value ? colors.accent : colors.border,
-                            },
-                          ]}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={[styles.sortChipText, { color: effectiveSortMode === option.value ? "#fff" : colors.foreground }]}>
-                            {t(option.labelKey)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                  {useTemplateSort ? (
+                    <>
+                      <View style={styles.filterWrap}>
+                        {templateSortColumns.length > 0 ? (
+                          templateSortColumns.map((option) => (
+                            <TouchableOpacity
+                              key={option.key}
+                              onPress={() => setTemplateSortKey(option.key)}
+                              style={[
+                                styles.sortChip,
+                                {
+                                  backgroundColor: activeTemplateSortKey === option.key ? colors.accent : colors.card,
+                                  borderColor: activeTemplateSortKey === option.key ? colors.accent : colors.border,
+                                },
+                              ]}
+                              activeOpacity={0.8}
+                            >
+                              <Text
+                                style={[
+                                  styles.sortChipText,
+                                  {
+                                    color: activeTemplateSortKey === option.key ? "#fff" : colors.foreground,
+                                  },
+                                ]}
+                              >
+                                {option.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))
+                        ) : (
+                          <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>Template မတွေ့သေးပါ</Text>
+                        )}
+                      </View>
+                      <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>
+                        {selectedTemplate?.name ?? getServiceTypeLabel(serviceFilter)} — {t("serviceType")} အလိုက် Template ရဲ့ စာတိုင်ခေါင်းစဉ်တွေကို နှိပ်ပြီး စီပါ။
+                      </Text>
+                    </>
                   ) : (
                     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.filterScroll}>
-                      {sortOptions.map((option) => (
+                      {BASE_SORT_OPTIONS.map((option) => (
                         <TouchableOpacity
                           key={option.value}
                           onPress={() => setSortMode(option.value)}
                           style={[
                             styles.sortChip,
                             {
-                              backgroundColor: effectiveSortMode === option.value ? colors.accent : colors.card,
-                              borderColor: effectiveSortMode === option.value ? colors.accent : colors.border,
+                              backgroundColor: sortMode === option.value ? colors.accent : colors.card,
+                              borderColor: sortMode === option.value ? colors.accent : colors.border,
                             },
                           ]}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.sortChipText, { color: effectiveSortMode === option.value ? "#fff" : colors.foreground }]}>
+                          <Text
+                            style={[
+                              styles.sortChipText,
+                              {
+                                color: sortMode === option.value ? "#fff" : colors.foreground,
+                              },
+                            ]}
+                          >
                             {t(option.labelKey)}
                           </Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
-                  )}
-                  {useTemplateSort && (
-                    <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>
-                      {t("templateOrderSort")} — {t("serviceType")} အလိုက် Template ရဲ့ စာတိုင်အစီအစဉ်အတိုင်း စီထားပါတယ်။
-                    </Text>
                   )}
                 </View>
               </View>
