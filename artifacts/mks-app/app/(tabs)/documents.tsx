@@ -82,6 +82,62 @@ const TEMPLATE_SORT_LABELS: Record<string, { en: string; my: string }> = {
   notes: { en: "Notes", my: "မှတ်ချက်" },
 };
 
+const TEMPLATE_SORT_ALIAS_TO_KEY: Record<string, string> = {
+  title: "title",
+  ခေါင်းစဉ်: "title",
+  servicetype: "service_type",
+  service_type: "service_type",
+  ဝန်ဆောင်မှုအမျိုးအစား: "service_type",
+  status: "status",
+  အခြေအနေ: "status",
+  index: "index",
+  စဉ်: "index",
+  seatprefix: "seat_prefix",
+  seat_prefix: "seat_prefix",
+  ခုံ: "seat_prefix",
+  certificateno: "certificate_no",
+  certificate_no: "certificate_no",
+  အမှတ်: "certificate_no",
+  seatno: "seat_no",
+  seat_no: "seat_no",
+  ခုံနံပါတ်: "seat_no",
+  year: "year",
+  ခုနှစ်: "year",
+  studentname: "student_name",
+  student_name: "student_name",
+  အမည်: "student_name",
+  fathername: "father_name",
+  father_name: "father_name",
+  အဖအမည်: "father_name",
+  township: "township",
+  မြို့နယ်: "township",
+  submittedby: "submitted_by",
+  submitted_by: "submitted_by",
+  အပ်နှံသူ: "submitted_by",
+  submitteddate: "submitted_date",
+  submitted_date: "submitted_date",
+  အပ်နှံရက်စွဲ: "submitted_date",
+  receiveddate: "received_date",
+  received_date: "received_date",
+  ရရှိရက်စွဲ: "received_date",
+  returneddate: "returned_date",
+  returned_date: "returned_date",
+  ပြန်ပို့ရက်စွဲ: "returned_date",
+  issuedby: "issued_by",
+  issued_by: "issued_by",
+  ထုတ်ပေးသူ: "issued_by",
+  school: "school",
+  ကျောင်း: "school",
+  academicyear: "academic_year",
+  academic_year: "academic_year",
+  ပညာသင်နှစ်: "academic_year",
+  agent: "agent",
+  date: "date",
+  ရက်စွဲ: "date",
+  notes: "notes",
+  မှတ်ချက်: "notes",
+};
+
 function getLocalizedTemplateSortLabel(
   columnKey: string,
   fallbackLabel: string,
@@ -105,6 +161,18 @@ function getLocalizedTemplateSortLabel(
   }
 
   return fallbackLabel;
+}
+
+function normalizeSortLabel(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function getTemplateSortCanonicalKey(columnKey: string, label: string) {
+  const directKey = TEMPLATE_SORT_ALIAS_TO_KEY[columnKey] ?? TEMPLATE_SORT_ALIAS_TO_KEY[normalizeSortLabel(columnKey)];
+  if (directKey) return directKey;
+  const labelKey = TEMPLATE_SORT_ALIAS_TO_KEY[label] ?? TEMPLATE_SORT_ALIAS_TO_KEY[normalizeSortLabel(label)];
+  if (labelKey) return labelKey;
+  return columnKey.startsWith("custom_") ? `custom:${columnKey.slice("custom_".length)}` : columnKey;
 }
 
 export default function DocumentsScreen() {
@@ -177,12 +245,19 @@ export default function DocumentsScreen() {
   }, [serviceFilter, serviceTypes, templates, useTemplateSort]);
   const templateSortColumns = useMemo(() => {
     if (!selectedTemplate) return [];
+    const seen = new Set<string>();
     return getTemplateWorkbookColumns(selectedTemplate)
       .filter((column) => !TEMPLATE_SORT_EXCLUDED_KEYS.has(column.key))
-      .map((column) => ({
-        key: column.key,
-        label: getLocalizedTemplateSortLabel(column.key, column.label, selectedTemplate, language),
-      }));
+      .map((column) => {
+        const label = getLocalizedTemplateSortLabel(column.key, column.label, selectedTemplate, language);
+        const canonicalKey = getTemplateSortCanonicalKey(column.key, label);
+        return { key: column.key, label, canonicalKey };
+      })
+      .filter((column) => {
+        if (seen.has(column.canonicalKey)) return false;
+        seen.add(column.canonicalKey);
+        return true;
+      });
   }, [language, selectedTemplate]);
   const effectiveSortMode: DocumentSortMode = sortMode === "template-order" ? "updated-desc" : sortMode;
   const activeTemplateSortKey = templateSortColumns.some((column) => column.key === templateSortKey)
@@ -195,7 +270,6 @@ export default function DocumentsScreen() {
     const activeBaseSort = BASE_SORT_OPTIONS.find((option) => option.value === sortMode) ?? BASE_SORT_OPTIONS[0];
     return t(activeBaseSort.labelKey);
   }, [activeTemplateSortKey, sortMode, t, templateSortColumns, useTemplateSort]);
-  const sortOptionsList = useTemplateSort ? templateSortColumns : BASE_SORT_OPTIONS;
   useEffect(() => {
     if (!useTemplateSort) {
       if (templateSortKey) setTemplateSortKey("");
@@ -506,26 +580,26 @@ export default function DocumentsScreen() {
 
                 <View style={[styles.filterCard, isWide && styles.filterCardWide, { backgroundColor: colors.muted, borderColor: colors.border }]}>
                   <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("sortBy")}</Text>
-                  <View style={styles.sortDropdown}>
-                    <TouchableOpacity
-                      onPress={() => setSortMenuOpen((value) => !value)}
-                      style={[
-                        styles.sortDropdownButton,
-                        {
-                          backgroundColor: colors.card,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.sortDropdownButtonText, { color: colors.foreground }]}>{activeSortLabel}</Text>
-                      <Feather name={sortMenuOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
-                    </TouchableOpacity>
-                    {sortMenuOpen && (
-                      <View style={[styles.sortDropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <ScrollView style={styles.sortDropdownScroll} nestedScrollEnabled>
-                          {useTemplateSort ? (
-                            templateSortColumns.length > 0 ? (
+                  {useTemplateSort ? (
+                    <View style={styles.sortDropdown}>
+                      <TouchableOpacity
+                        onPress={() => setSortMenuOpen((value) => !value)}
+                        style={[
+                          styles.sortDropdownButton,
+                          {
+                            backgroundColor: colors.card,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.sortDropdownButtonText, { color: colors.foreground }]}>{activeSortLabel}</Text>
+                        <Feather name={sortMenuOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                      {sortMenuOpen && (
+                        <View style={[styles.sortDropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                          <ScrollView style={styles.sortDropdownScroll} nestedScrollEnabled>
+                            {templateSortColumns.length > 0 ? (
                               templateSortColumns.map((option) => {
                                 const selected = activeTemplateSortKey === option.key;
                                 return (
@@ -552,37 +626,40 @@ export default function DocumentsScreen() {
                               })
                             ) : (
                               <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>Template မတွေ့သေးပါ</Text>
-                            )
-                          ) : (
-                            BASE_SORT_OPTIONS.map((option) => {
-                              const selected = sortMode === option.value;
-                              return (
-                                <TouchableOpacity
-                                  key={option.value}
-                                  onPress={() => {
-                                    setSortMode(option.value);
-                                    setSortMenuOpen(false);
-                                  }}
-                                  style={[
-                                    styles.sortDropdownItem,
-                                    {
-                                      backgroundColor: selected ? colors.navyLight : colors.card,
-                                      borderColor: selected ? colors.primary : colors.border,
-                                    },
-                                  ]}
-                                  activeOpacity={0.8}
-                                >
-                                  <Text style={[styles.sortDropdownItemText, { color: selected ? colors.primary : colors.foreground }]}>
-                                    {t(option.labelKey)}
-                                  </Text>
-                                </TouchableOpacity>
-                              );
-                            })
-                          )}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
+                            )}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.filterScroll}>
+                      {BASE_SORT_OPTIONS.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          onPress={() => setSortMode(option.value)}
+                          style={[
+                            styles.sortChip,
+                            {
+                              backgroundColor: sortMode === option.value ? colors.accent : colors.card,
+                              borderColor: sortMode === option.value ? colors.accent : colors.border,
+                            },
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.sortChipText,
+                              {
+                                color: sortMode === option.value ? "#fff" : colors.foreground,
+                              },
+                            ]}
+                          >
+                            {t(option.labelKey)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                   {useTemplateSort && templateSortColumns.length > 0 && (
                     <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>
                       {selectedTemplate?.name ?? getServiceTypeLabel(serviceFilter)} — {t("serviceType")} အလိုက် Template စာတိုင်ကို ရွေးပြီး Excel sort လိုမျိုး စီပါ။
