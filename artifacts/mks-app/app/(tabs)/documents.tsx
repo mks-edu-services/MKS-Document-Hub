@@ -177,6 +177,11 @@ function getTemplateSortCanonicalKey(columnKey: string, label: string) {
   return columnKey.startsWith("custom_") ? `custom:${columnKey.slice("custom_".length)}` : columnKey;
 }
 
+function isAllServiceFilter(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "all" || normalized === "အားလုံး";
+}
+
 export default function DocumentsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -236,7 +241,7 @@ export default function DocumentsScreen() {
     const matchStatus = statusFilter === "all" || d.status === statusFilter;
     return matchSearch && matchService && matchStatus;
   });
-  const useTemplateSort = serviceFilter !== "All";
+  const useTemplateSort = !isAllServiceFilter(serviceFilter);
   const selectedTemplate = useMemo(() => {
     if (!useTemplateSort) return null;
     const matchingTemplates = templates.filter((template) => resolveServiceTypeId(template.serviceType, serviceTypes) === serviceFilter);
@@ -336,7 +341,7 @@ export default function DocumentsScreen() {
     driveLinked: sorted.filter((d) => (d.driveSyncStatus ?? (d.driveFileUrl ? "synced" : "pending")) === "synced").length,
   };
 
-  const hasActiveFilters = search.length > 0 || serviceFilter !== "All" || statusFilter !== "all" || effectiveSortMode !== "updated-desc";
+  const hasActiveFilters = search.length > 0 || !isAllServiceFilter(serviceFilter) || statusFilter !== "all" || effectiveSortMode !== "updated-desc";
 
   function resetFilters() {
     setSearch("");
@@ -488,7 +493,7 @@ export default function DocumentsScreen() {
                 <View>
                   <Text style={[styles.panelTitle, { color: colors.foreground }]}>{t("advancedSearch")}</Text>
                   <Text style={[styles.panelSubtitle, { color: colors.mutedForeground }]}>
-                    {search || serviceFilter !== "All" || statusFilter !== "all"
+                    {search || !isAllServiceFilter(serviceFilter) || statusFilter !== "all"
                       ? `${sorted.length} ${t("resultsFound")}`
                       : t("trackingTipsDescription")}
                   </Text>
