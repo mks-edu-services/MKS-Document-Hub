@@ -31,7 +31,8 @@ import {
   getRegistryDocumentFieldValue,
   isRegistryDocument,
 } from "@/lib/registry";
-import { deleteDocument, getDocument, getTemplate, updateDocument } from "@/lib/firestore";
+import { deleteDocument, getDocument, getTemplate, getTemplates, updateDocument } from "@/lib/firestore";
+import { resolveTemplateForDocument } from "@/lib/templateResolution";
 import {
   buildDriveFullImageUrl,
   buildDriveDownloadUrl,
@@ -196,16 +197,17 @@ export default function DocumentDetailScreen() {
         const normalized = normalizeDocument(doc);
         if (cancelled) return;
         setDocument(normalized);
-        if (normalized?.templateId) {
-          try {
-            const tmpl = await getTemplate(normalized.templateId);
-            if (cancelled) return;
-            setTemplateFields(tmpl?.fields ?? []);
-          } catch {
-            if (!cancelled) setTemplateFields([]);
-          }
-        } else if (!cancelled) {
-          setTemplateFields([]);
+        try {
+          const directTemplate = normalized?.templateId
+            ? await getTemplate(normalized.templateId).catch(() => null)
+            : null;
+          const allTemplates = directTemplate ? [] : await getTemplates(false).catch(() => []);
+          const resolvedTemplate = directTemplate ?? resolveTemplateForDocument(normalized, allTemplates);
+
+          if (cancelled) return;
+          setTemplateFields(resolvedTemplate?.fields ?? []);
+        } catch {
+          if (!cancelled) setTemplateFields([]);
         }
       } finally {
         if (!cancelled) setLoading(false);

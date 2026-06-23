@@ -27,6 +27,7 @@ import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
 import { getRegistryFieldDefinitions } from "@/lib/registry";
 import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
 import { getTemplateWorkbookColumns } from "@/lib/templateWorkbook";
+import { resolveTemplateForServiceType } from "@/lib/templateResolution";
 import { Document, DocumentStatus, Template } from "@/types";
 import { useWindowDimensions } from "react-native";
 import * as XLSX from "xlsx";
@@ -244,13 +245,8 @@ export default function DocumentsScreen() {
   const useTemplateSort = !isAllServiceFilter(serviceFilter);
   const selectedTemplate = useMemo(() => {
     if (!useTemplateSort) return null;
-    const matchingTemplates = templates.filter((template) => resolveServiceTypeId(template.serviceType, serviceTypes) === serviceFilter);
-    if (matchingTemplates.length === 0) return null;
-    return [...matchingTemplates].sort((left, right) => {
-      if (left.active !== right.active) return left.active ? -1 : 1;
-      return String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? ""));
-    })[0];
-  }, [serviceFilter, serviceTypes, templates, useTemplateSort]);
+    return resolveTemplateForServiceType(serviceFilter, templates, documents, serviceTypes);
+  }, [documents, serviceFilter, serviceTypes, templates, useTemplateSort]);
   const templateSortColumns = useMemo(() => {
     if (!selectedTemplate) return [];
     const seen = new Set<string>();

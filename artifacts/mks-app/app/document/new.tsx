@@ -28,6 +28,7 @@ import { getRegistryDisplayTitle, getRegistryFieldDefinitions } from "@/lib/regi
 import { Document, Template } from "@/types";
 import { getDocument } from "@/lib/firestore";
 import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { resolveTemplateForDocument } from "@/lib/templateResolution";
 
 const ACADEMIC_YEARS = ["2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
 const FIELD_TYPE_HINTS = {
@@ -196,7 +197,7 @@ export default function NewDocumentScreen() {
           setExistingDocument(existing);
           setEditingDocumentId(existing.id);
           setForm(buildFormFromDocument(existing));
-          const existingTemplate = tmps.find((t) => t.id === existing.templateId) ?? null;
+          const existingTemplate = resolveTemplateForDocument(existing, tmps, serviceTypes);
           setSelectedTemplate(existingTemplate);
         }
         setLoadingDocument(false);
@@ -248,11 +249,11 @@ export default function NewDocumentScreen() {
     const requestedTemplate = params.templateId
       ? matchingTemplates.find((template) => template.id === params.templateId)
       : null;
-    const existingTemplate = editingDocumentId && existingDocument?.templateId
-      ? matchingTemplates.find((template) => template.id === existingDocument.templateId)
+    const existingTemplate = editingDocumentId && existingDocument
+      ? resolveTemplateForDocument(existingDocument, matchingTemplates, serviceTypes)
       : null;
     applyTemplate(requestedTemplate ?? existingTemplate ?? matchingTemplates[0]);
-  }, [editingDocumentId, existingDocument?.templateId, form.serviceType, params.templateId, selectedTemplate, templates]);
+  }, [editingDocumentId, existingDocument, form.serviceType, params.templateId, selectedTemplate, serviceTypes, templates]);
 
   function applyTemplate(tmpl: Template) {
     setSelectedTemplate(tmpl);

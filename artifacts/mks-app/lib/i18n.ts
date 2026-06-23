@@ -330,7 +330,9 @@ export function localizeFieldLabel(
   language: LanguageCode,
   field: { label: string; labelMy?: string; labelEn?: string },
 ): string {
-  return language === "en" ? field.labelEn || field.labelMy || field.label : field.labelMy || field.label || field.labelEn || field.label;
+  return language === "en"
+    ? field.label || field.labelEn || field.labelMy || ""
+    : field.label || field.labelMy || field.labelEn || "";
 }
 
 export function localizeFieldDescription(
