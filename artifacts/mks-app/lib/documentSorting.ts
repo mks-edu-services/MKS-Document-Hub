@@ -7,7 +7,8 @@ export type DocumentSortMode =
   | "name-desc"
   | "year-desc"
   | "year-asc"
-  | "seat-asc";
+  | "seat-asc"
+  | "template-order";
 
 function normalizeText(value: unknown) {
   return String(value ?? "").trim();

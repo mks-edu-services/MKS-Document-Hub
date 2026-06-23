@@ -707,3 +707,27 @@ This follow-up makes the workbook flow reusable for any template, so future temp
 ### Deployment note
 
 - The latest successful live deploy after this workbook update is `1782157015414000`.
+
+## 23) June 2026 Update — Service-Type Template Sort Mode
+
+This follow-up makes the `/documents` sort area switch to the active template’s column order whenever a specific service type is selected.
+
+### What changed
+
+- Added a dedicated `template-order` sort mode in the document list sort pipeline.
+- When `ဝန်ဆောင်မှုအမျိုးအစား` is set to `အားလုံး`, the page keeps the existing general sort modes.
+- When a specific service type is selected, the sort UI now shows a template-order mode instead of the generic list of sort chips.
+- The list comparator now keeps using template field order as the primary ordering for service-specific views.
+
+### Result
+
+- Users can keep the normal general sorts for `အားလုံး`, while service-specific views follow the matching template’s column structure automatically.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful live deploy after this sort update is `1782193015208000`.

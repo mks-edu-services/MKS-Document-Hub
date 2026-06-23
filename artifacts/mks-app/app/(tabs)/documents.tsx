@@ -33,7 +33,7 @@ const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "Draft", value: "draft" },
   { label: "Archived", value: "archived" },
 ];
-const SORT_OPTIONS: Array<{ labelKey: "newestFirst" | "oldestFirst" | "nameAZ" | "nameZA" | "yearNewest" | "yearOldest" | "seatAscending"; value: DocumentSortMode }> = [
+const BASE_SORT_OPTIONS: Array<{ labelKey: "newestFirst" | "oldestFirst" | "nameAZ" | "nameZA" | "yearNewest" | "yearOldest" | "seatAscending"; value: DocumentSortMode }> = [
   { labelKey: "newestFirst", value: "updated-desc" },
   { labelKey: "oldestFirst", value: "updated-asc" },
   { labelKey: "nameAZ", value: "name-asc" },
@@ -99,9 +99,22 @@ export default function DocumentsScreen() {
     const matchStatus = statusFilter === "all" || d.status === statusFilter;
     return matchSearch && matchService && matchStatus;
   });
+  const useTemplateSort = serviceFilter !== "All";
+  const sortOptions = useMemo(
+    () =>
+      useTemplateSort
+        ? [{ labelKey: "templateOrderSort" as const, value: "template-order" as DocumentSortMode }]
+        : BASE_SORT_OPTIONS,
+    [useTemplateSort],
+  );
+  const effectiveSortMode: DocumentSortMode = useTemplateSort
+    ? "template-order"
+    : sortMode === "template-order"
+    ? "updated-desc"
+    : sortMode;
   const sorted = useMemo(
-    () => sortDocumentsForList(filtered, { query: search, serviceType: serviceFilter, sortMode, templates, serviceTypes }),
-    [filtered, search, serviceFilter, sortMode, templates, serviceTypes],
+    () => sortDocumentsForList(filtered, { query: search, serviceType: serviceFilter, sortMode: effectiveSortMode, templates, serviceTypes }),
+    [filtered, search, serviceFilter, effectiveSortMode, templates, serviceTypes],
   );
   const serviceTypeOptions = useMemo(
     () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
@@ -117,7 +130,7 @@ export default function DocumentsScreen() {
     driveLinked: sorted.filter((d) => (d.driveSyncStatus ?? (d.driveFileUrl ? "synced" : "pending")) === "synced").length,
   };
 
-  const hasActiveFilters = search.length > 0 || serviceFilter !== "All" || statusFilter !== "all" || sortMode !== "updated-desc";
+  const hasActiveFilters = search.length > 0 || serviceFilter !== "All" || statusFilter !== "all" || effectiveSortMode !== "updated-desc";
 
   function resetFilters() {
     setSearch("");
@@ -390,20 +403,20 @@ export default function DocumentsScreen() {
                   <Text style={[styles.filterLabel, { color: colors.mutedForeground }]}>{t("sortBy")}</Text>
                   {isWide ? (
                     <View style={styles.filterWrap}>
-                      {SORT_OPTIONS.map((option) => (
+                      {sortOptions.map((option) => (
                         <TouchableOpacity
                           key={option.value}
                           onPress={() => setSortMode(option.value)}
                           style={[
                             styles.sortChip,
                             {
-                              backgroundColor: sortMode === option.value ? colors.accent : colors.card,
-                              borderColor: sortMode === option.value ? colors.accent : colors.border,
+                              backgroundColor: effectiveSortMode === option.value ? colors.accent : colors.card,
+                              borderColor: effectiveSortMode === option.value ? colors.accent : colors.border,
                             },
                           ]}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.sortChipText, { color: sortMode === option.value ? "#fff" : colors.foreground }]}>
+                          <Text style={[styles.sortChipText, { color: effectiveSortMode === option.value ? "#fff" : colors.foreground }]}>
                             {t(option.labelKey)}
                           </Text>
                         </TouchableOpacity>
@@ -411,25 +424,30 @@ export default function DocumentsScreen() {
                     </View>
                   ) : (
                     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.filterScroll}>
-                      {SORT_OPTIONS.map((option) => (
+                      {sortOptions.map((option) => (
                         <TouchableOpacity
                           key={option.value}
                           onPress={() => setSortMode(option.value)}
                           style={[
                             styles.sortChip,
                             {
-                              backgroundColor: sortMode === option.value ? colors.accent : colors.card,
-                              borderColor: sortMode === option.value ? colors.accent : colors.border,
+                              backgroundColor: effectiveSortMode === option.value ? colors.accent : colors.card,
+                              borderColor: effectiveSortMode === option.value ? colors.accent : colors.border,
                             },
                           ]}
                           activeOpacity={0.8}
                         >
-                          <Text style={[styles.sortChipText, { color: sortMode === option.value ? "#fff" : colors.foreground }]}>
+                          <Text style={[styles.sortChipText, { color: effectiveSortMode === option.value ? "#fff" : colors.foreground }]}>
                             {t(option.labelKey)}
                           </Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
+                  )}
+                  {useTemplateSort && (
+                    <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>
+                      {t("templateOrderSort")} — {t("serviceType")} အလိုက် Template ရဲ့ စာတိုင်အစီအစဉ်အတိုင်း စီထားပါတယ်။
+                    </Text>
                   )}
                 </View>
               </View>
@@ -528,6 +546,7 @@ const styles = StyleSheet.create({
   filterWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   sortChip: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
   sortChipText: { fontSize: 11, fontWeight: "600" },
+  sortHelperText: { fontSize: 11, lineHeight: 16, marginTop: 2 },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 5,

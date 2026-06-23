@@ -174,6 +174,7 @@ export function sortDocumentsForList(documents: Document[], options: DocumentLis
   const serviceTypeId = resolveServiceTypeId(options.serviceType, options.serviceTypes ?? []);
   const templatesById = Object.fromEntries((options.templates ?? []).map((template) => [template.id, template]));
   const shouldUseTemplateOrder = Boolean(serviceTypeId && serviceTypeId !== "All");
+  const effectiveSortMode = shouldUseTemplateOrder ? "template-order" : sortMode;
 
   return [...documents].sort((left, right) => {
     if (query) {
@@ -186,7 +187,7 @@ export function sortDocumentsForList(documents: Document[], options: DocumentLis
       if (templateCompare !== 0) return templateCompare;
     }
 
-    return compareDocumentsByMode(left, right, sortMode);
+    return compareDocumentsByMode(left, right, effectiveSortMode as DocumentSortMode);
   });
 }
 

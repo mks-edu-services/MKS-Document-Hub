@@ -237,6 +237,7 @@ const TEXT = {
   fieldTypePrompt: { my: "ကွက်အမျိုးအစား", en: "Field type" },
   filters: { my: "Filter များ", en: "Filters" },
   sortBy: { my: "စီရန်", en: "Sort by" },
+  templateOrderSort: { my: "စာတိုင်အလိုက်", en: "Template order" },
   newestFirst: { my: "အသစ်ဆုံး", en: "Newest" },
   oldestFirst: { my: "အဟောင်းဆုံး", en: "Oldest" },
   nameAZ: { my: "အမည် A-Z", en: "Name A-Z" },
