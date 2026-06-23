@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Platform,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -280,7 +282,7 @@ export default function DocumentsScreen() {
     if (!templateSortColumns.some((column) => column.key === templateSortKey)) {
       setTemplateSortKey(templateSortColumns[0].key);
     }
-  }, [serviceFilter, sortMenuOpen, templateSortColumns, templateSortKey, useTemplateSort]);
+  }, [serviceFilter, templateSortColumns, templateSortKey, useTemplateSort]);
   const sorted = useMemo(
     () =>
       sortDocumentsForList(filtered, {
@@ -594,42 +596,55 @@ export default function DocumentsScreen() {
                         activeOpacity={0.85}
                       >
                         <Text style={[styles.sortDropdownButtonText, { color: colors.foreground }]}>{activeSortLabel}</Text>
-                        <Feather name={sortMenuOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
+                          <Feather name={sortMenuOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.mutedForeground} />
                       </TouchableOpacity>
-                      {sortMenuOpen && (
-                        <View style={[styles.sortDropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                          <ScrollView style={styles.sortDropdownScroll} nestedScrollEnabled>
-                            {templateSortColumns.length > 0 ? (
-                              templateSortColumns.map((option) => {
-                                const selected = activeTemplateSortKey === option.key;
-                                return (
-                                  <TouchableOpacity
-                                    key={option.key}
-                                    onPress={() => {
-                                      setTemplateSortKey(option.key);
-                                      setSortMenuOpen(false);
-                                    }}
-                                    style={[
-                                      styles.sortDropdownItem,
-                                      {
-                                        backgroundColor: selected ? colors.navyLight : colors.card,
-                                        borderColor: selected ? colors.primary : colors.border,
-                                      },
-                                    ]}
-                                    activeOpacity={0.8}
-                                  >
-                                    <Text style={[styles.sortDropdownItemText, { color: selected ? colors.primary : colors.foreground }]}>
-                                      {option.label}
-                                    </Text>
-                                  </TouchableOpacity>
-                                );
-                              })
-                            ) : (
-                              <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>Template မတွေ့သေးပါ</Text>
-                            )}
-                          </ScrollView>
-                        </View>
-                      )}
+                      <Modal
+                        visible={sortMenuOpen}
+                        transparent
+                        animationType="fade"
+                        onRequestClose={() => setSortMenuOpen(false)}
+                      >
+                        <Pressable style={styles.sortDropdownOverlay} onPress={() => setSortMenuOpen(false)}>
+                          <Pressable
+                            style={[styles.sortDropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}
+                            onPress={(event) => event.stopPropagation()}
+                          >
+                            <Text style={[styles.sortDropdownMenuTitle, { color: colors.mutedForeground }]}>
+                              {selectedTemplate?.name ?? getServiceTypeLabel(serviceFilter)}
+                            </Text>
+                            <ScrollView style={styles.sortDropdownScroll} nestedScrollEnabled>
+                              {templateSortColumns.length > 0 ? (
+                                templateSortColumns.map((option) => {
+                                  const selected = activeTemplateSortKey === option.key;
+                                  return (
+                                    <TouchableOpacity
+                                      key={option.key}
+                                      onPress={() => {
+                                        setTemplateSortKey(option.key);
+                                        setSortMenuOpen(false);
+                                      }}
+                                      style={[
+                                        styles.sortDropdownItem,
+                                        {
+                                          backgroundColor: selected ? colors.navyLight : colors.card,
+                                          borderColor: selected ? colors.primary : colors.border,
+                                        },
+                                      ]}
+                                      activeOpacity={0.8}
+                                    >
+                                      <Text style={[styles.sortDropdownItemText, { color: selected ? colors.primary : colors.foreground }]}>
+                                        {option.label}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })
+                              ) : (
+                                <Text style={[styles.sortHelperText, { color: colors.mutedForeground }]}>Template မတွေ့သေးပါ</Text>
+                              )}
+                            </ScrollView>
+                          </Pressable>
+                        </Pressable>
+                      </Modal>
                     </View>
                   ) : (
                     <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.filterScroll}>
@@ -764,6 +779,14 @@ const styles = StyleSheet.create({
   sortChipText: { fontSize: 11, fontWeight: "600" },
   sortHelperText: { fontSize: 11, lineHeight: 16, marginTop: 2 },
   sortDropdown: { gap: 8 },
+  sortDropdownOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.18)",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 180,
+    paddingHorizontal: 16,
+  },
   sortDropdownButton: {
     minHeight: 44,
     borderRadius: 14,
@@ -776,8 +799,21 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sortDropdownButtonText: { flex: 1, fontSize: 14, fontWeight: "600" },
-  sortDropdownMenu: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-  sortDropdownScroll: { maxHeight: 260 },
+  sortDropdownMenu: {
+    width: "100%",
+    maxWidth: 640,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    padding: 12,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  sortDropdownMenuTitle: { fontSize: 12, fontWeight: "700", marginBottom: 10 },
+  sortDropdownScroll: { maxHeight: 320 },
   sortDropdownItem: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
   sortDropdownItemText: { fontSize: 13, fontWeight: "600" },
   chip: {
