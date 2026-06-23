@@ -51,47 +51,55 @@ function compareTemplateValues(left: unknown, right: unknown, type?: string) {
 const TEMPLATE_SORT_BASE_FIELD_TYPES: Record<string, string> = {
   index: "number",
   year: "number",
-  submittedDate: "date",
-  receivedDate: "date",
-  returnedDate: "date",
+  academic_year: "number",
+  certificate_no: "number",
+  seat_no: "number",
+  submitted_date: "date",
+  received_date: "date",
+  returned_date: "date",
   date: "date",
   driveMatchConfidence: "number",
 };
 
+function getTemplateFieldId(fieldKey: string) {
+  if (fieldKey.startsWith("custom_")) {
+    return fieldKey.slice("custom_".length);
+  }
+  return fieldKey;
+}
+
 function getDocumentSortFieldValue(document: Document, fieldKey: string) {
+  const templateFieldKey = getTemplateFieldId(fieldKey);
   switch (fieldKey) {
     case "index":
       return document.index;
-    case "seatPrefix":
+    case "seat_prefix":
       return document.seatPrefix;
-    case "certificateNo":
+    case "certificate_no":
       return document.certificateNo;
-    case "seatNo":
+    case "seat_no":
       return document.seatNo ?? document.seatNumber;
-    case "seatNumber":
-      return document.seatNumber ?? document.seatNo;
     case "year":
+    case "academic_year":
       return document.year ?? document.academicYear;
-    case "studentName":
+    case "student_name":
       return document.studentName;
-    case "fatherName":
+    case "father_name":
       return document.fatherName;
     case "township":
       return document.township;
-    case "submittedBy":
+    case "submitted_by":
       return document.submittedBy;
-    case "submittedDate":
+    case "submitted_date":
       return document.submittedDate;
-    case "receivedDate":
+    case "received_date":
       return document.receivedDate;
-    case "returnedDate":
+    case "returned_date":
       return document.returnedDate;
-    case "issuedBy":
+    case "issued_by":
       return document.issuedBy;
     case "school":
       return document.school;
-    case "academicYear":
-      return document.academicYear;
     case "agent":
       return document.agent;
     case "date":
@@ -100,16 +108,27 @@ function getDocumentSortFieldValue(document: Document, fieldKey: string) {
       return document.status;
     case "notes":
       return document.notes;
+    case "service_type":
+      return document.serviceType;
+    case "title":
+      return document.title;
+    case "template_id":
+      return document.templateId;
+    case "template_name":
+      return document.templateName;
+    case "app_document_id":
+      return document.id;
     default:
-      return document.fields?.[fieldKey] ?? getDocumentFieldValue(document, fieldKey);
+      return document.fields?.[templateFieldKey] ?? getDocumentFieldValue(document, templateFieldKey);
   }
 }
 
 function getTemplateSortFieldType(template: Template | undefined, fieldKey: string) {
+  const templateFieldKey = getTemplateFieldId(fieldKey);
   if (TEMPLATE_SORT_BASE_FIELD_TYPES[fieldKey]) {
     return TEMPLATE_SORT_BASE_FIELD_TYPES[fieldKey];
   }
-  return template?.fields.find((field) => field.id === fieldKey)?.type;
+  return template?.fields.find((field) => field.id === templateFieldKey)?.type;
 }
 
 function compareDocumentsByTemplateField(
