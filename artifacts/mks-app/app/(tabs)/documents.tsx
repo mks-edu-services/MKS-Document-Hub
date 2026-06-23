@@ -1,6 +1,6 @@
 import { Feather } from "@/components/AppIcons";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -197,6 +197,7 @@ export default function DocumentsScreen() {
   const [sortMode, setSortMode] = useState<DocumentSortMode>("updated-desc");
   const [templateSortKey, setTemplateSortKey] = useState("");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isFirebaseReady) { setLoading(false); return; }
@@ -272,6 +273,31 @@ export default function DocumentsScreen() {
     const activeBaseSort = BASE_SORT_OPTIONS.find((option) => option.value === sortMode) ?? BASE_SORT_OPTIONS[0];
     return t(activeBaseSort.labelKey);
   }, [activeTemplateSortKey, sortMode, t, templateSortColumns, useTemplateSort]);
+  useEffect(() => {
+    return () => {
+      if (sortMenuOpenTimerRef.current) {
+        clearTimeout(sortMenuOpenTimerRef.current);
+      }
+    };
+  }, []);
+  function openSortMenu() {
+    if (!useTemplateSort) return;
+    if (sortMenuOpenTimerRef.current) {
+      clearTimeout(sortMenuOpenTimerRef.current);
+    }
+    sortMenuOpenTimerRef.current = setTimeout(() => {
+      setSortMenuOpen(true);
+      sortMenuOpenTimerRef.current = null;
+    }, 40);
+  }
+  function toggleSortMenu() {
+    if (!useTemplateSort) return;
+    if (sortMenuOpen) {
+      setSortMenuOpen(false);
+      return;
+    }
+    openSortMenu();
+  }
   useEffect(() => {
     if (!useTemplateSort) {
       if (templateSortKey) setTemplateSortKey("");
@@ -585,7 +611,7 @@ export default function DocumentsScreen() {
                   {useTemplateSort ? (
                     <View style={styles.sortDropdown}>
                       <TouchableOpacity
-                        onPress={() => setSortMenuOpen((value) => !value)}
+                        onPress={toggleSortMenu}
                         style={[
                           styles.sortDropdownButton,
                           {
