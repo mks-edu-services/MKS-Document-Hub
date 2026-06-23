@@ -198,11 +198,8 @@ export default function DocumentDetailScreen() {
         if (cancelled) return;
         setDocument(normalized);
         try {
-          const directTemplate = normalized?.templateId
-            ? await getTemplate(normalized.templateId).catch(() => null)
-            : null;
-          const allTemplates = directTemplate ? [] : await getTemplates(false).catch(() => []);
-          const resolvedTemplate = directTemplate ?? resolveTemplateForDocument(normalized, allTemplates);
+          const allTemplates = await getTemplates(false).catch(() => []);
+          const resolvedTemplate = resolveTemplateForDocument(normalized, allTemplates);
 
           if (cancelled) return;
           setTemplateFields(resolvedTemplate?.fields ?? []);

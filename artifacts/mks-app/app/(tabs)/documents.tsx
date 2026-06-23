@@ -245,8 +245,8 @@ export default function DocumentsScreen() {
   const useTemplateSort = !isAllServiceFilter(serviceFilter);
   const selectedTemplate = useMemo(() => {
     if (!useTemplateSort) return null;
-    return resolveTemplateForServiceType(serviceFilter, templates, documents, serviceTypes);
-  }, [documents, serviceFilter, serviceTypes, templates, useTemplateSort]);
+    return resolveTemplateForServiceType(serviceFilter, templates, serviceTypes);
+  }, [serviceFilter, serviceTypes, templates, useTemplateSort]);
   const templateSortColumns = useMemo(() => {
     if (!selectedTemplate) return [];
     const seen = new Set<string>();
