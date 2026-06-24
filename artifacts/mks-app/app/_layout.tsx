@@ -65,6 +65,8 @@ function RootLayoutNav() {
         options={{
           headerShown: true,
           title: "Document Details",
+          headerBackVisible: false,
+          headerLeft: () => null,
           headerStyle: { backgroundColor: "#003366" },
           headerTintColor: "#ffffff",
           headerTitleStyle: { fontWeight: "700" },

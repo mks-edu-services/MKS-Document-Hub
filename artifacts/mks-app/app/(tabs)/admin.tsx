@@ -43,6 +43,7 @@ export default function AdminScreen() {
   const { serviceTypes } = useServiceTypes();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const currentUser = user;
+  const usersTableMinWidth = 860;
 
   const [tab, setTab] = useState<TabType>("templates");
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -451,154 +452,158 @@ export default function AdminScreen() {
           showsVerticalScrollIndicator={false}
         />
       ) : (
-        <FlatList
-          data={users}
-          keyExtractor={(item) => item.uid}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
-          ListHeaderComponent={
-            <View style={styles.usersHeader}>
-              <TouchableOpacity
-                onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: "new" } } as any)}
-                style={[styles.addTemplateBtnFull, { backgroundColor: colors.primary }]}
-                activeOpacity={0.85}
-              >
-                <Feather name="user-plus" size={18} color="#fff" />
-                <Text style={styles.addTemplateText}>{t("createUser")}</Text>
-              </TouchableOpacity>
-              <View style={[styles.tableHeader, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                <Text style={[styles.tableHeaderCell, styles.accountCol, { color: colors.mutedForeground }]}>{t("account")}</Text>
-                <Text style={[styles.tableHeaderCell, styles.contactCol, { color: colors.mutedForeground }]}>{t("email")}</Text>
-                <Text style={[styles.tableHeaderCell, styles.statusCol, { color: colors.mutedForeground }]}>{t("accessStatus")}</Text>
-                <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}</Text>
-              </View>
-            </View>
-          }
-          ListEmptyComponent={
-            <EmptyState icon="users" title={t("noUsersFound")} subtitle={t("usersWillAppear")} />
-          }
-          renderItem={({ item }) => (
-            <View style={[styles.tableRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.accountCell, styles.accountCol]}>
-                <View style={[styles.userAvatar, { backgroundColor: colors.navyLight }]}>
-                  {item.photoURL ? (
-                    <Image source={{ uri: item.photoURL }} style={styles.userAvatarImage} />
-                  ) : (
-                    <Text style={[styles.userInitial, { color: colors.primary }]}>
-                      {item.displayName?.[0]?.toUpperCase() ?? item.email?.[0]?.toUpperCase() ?? "?"}
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1}>
-                    {item.displayName ?? item.username ?? t("newUser")}
-                  </Text>
-                  <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    @{item.username ?? "-"}
-                  </Text>
-                  <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {item.uid === currentUser.uid ? t("currentUser") : item.role}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.contactCell, styles.contactCol]}>
-                <Text style={[styles.contactPrimary, { color: colors.foreground }]} numberOfLines={1}>
-                  {item.email}
-                </Text>
-                <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  {item.phoneNumber || "—"}
-                </Text>
-              </View>
-
-              <View style={[styles.statusCell, styles.statusCol]}>
-                <View style={[styles.roleBadge, { backgroundColor: roleColors[item.role]?.bg ?? "#f0f4f8" }]}>
-                  <Text style={[styles.roleText, { color: roleColors[item.role]?.text ?? "#6b7c93" }]}>
-                    {t(item.role)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.accessBadge,
-                    {
-                      backgroundColor:
-                        (item.accessStatus ?? "allowed") === "allowed"
-                          ? colors.successLight
-                          : (item.accessStatus ?? "allowed") === "pending"
-                          ? colors.warningLight
-                          : "#fee2e2",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.accessText,
-                      {
-                        color:
-                          (item.accessStatus ?? "allowed") === "allowed"
-                            ? colors.success
-                            : (item.accessStatus ?? "allowed") === "pending"
-                            ? colors.warning
-                            : colors.destructive,
-                      },
-                    ]}
+        <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
+          <View style={{ minWidth: usersTableMinWidth }}>
+            <FlatList
+              data={users}
+              keyExtractor={(item) => item.uid}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+              contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+              ListHeaderComponent={
+                <View style={styles.usersHeader}>
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: "new" } } as any)}
+                    style={[styles.addTemplateBtnFull, { backgroundColor: colors.primary }]}
+                    activeOpacity={0.85}
                   >
-                    {t(item.accessStatus ?? "allowed")}
-                  </Text>
+                    <Feather name="user-plus" size={18} color="#fff" />
+                    <Text style={styles.addTemplateText}>{t("createUser")}</Text>
+                  </TouchableOpacity>
+                  <View style={[styles.tableHeader, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                    <Text style={[styles.tableHeaderCell, styles.accountCol, { color: colors.mutedForeground }]}>{t("account")}</Text>
+                    <Text style={[styles.tableHeaderCell, styles.contactCol, { color: colors.mutedForeground }]}>{t("email")}</Text>
+                    <Text style={[styles.tableHeaderCell, styles.statusCol, { color: colors.mutedForeground }]}>{t("accessStatus")}</Text>
+                    <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}</Text>
+                  </View>
                 </View>
-                <View style={styles.roleButtons}>
-                  {ROLES.map((role) => (
-                    <TouchableOpacity
-                      key={role}
-                      onPress={() => handleChangeRole(item.uid, role)}
+              }
+              ListEmptyComponent={
+                <EmptyState icon="users" title={t("noUsersFound")} subtitle={t("usersWillAppear")} />
+              }
+              renderItem={({ item }) => (
+                <View style={[styles.tableRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.accountCell, styles.accountCol]}>
+                    <View style={[styles.userAvatar, { backgroundColor: colors.navyLight }]}>
+                      {item.photoURL ? (
+                        <Image source={{ uri: item.photoURL }} style={styles.userAvatarImage} />
+                      ) : (
+                        <Text style={[styles.userInitial, { color: colors.primary }]}>
+                          {item.displayName?.[0]?.toUpperCase() ?? item.email?.[0]?.toUpperCase() ?? "?"}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.userInfo}>
+                      <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1}>
+                        {item.displayName ?? item.username ?? t("newUser")}
+                      </Text>
+                      <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        @{item.username ?? "-"}
+                      </Text>
+                      <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {item.uid === currentUser.uid ? t("currentUser") : item.role}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.contactCell, styles.contactCol]}>
+                    <Text style={[styles.contactPrimary, { color: colors.foreground }]} numberOfLines={1}>
+                      {item.email}
+                    </Text>
+                    <Text style={[styles.userMeta, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {item.phoneNumber || "—"}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.statusCell, styles.statusCol]}>
+                    <View style={[styles.roleBadge, { backgroundColor: roleColors[item.role]?.bg ?? "#f0f4f8" }]}>
+                      <Text style={[styles.roleText, { color: roleColors[item.role]?.text ?? "#6b7c93" }]}>
+                        {t(item.role)}
+                      </Text>
+                    </View>
+                    <View
                       style={[
-                        styles.roleBtn,
+                        styles.accessBadge,
                         {
-                          backgroundColor: item.role === role ? roleColors[role].bg : colors.muted,
-                          borderColor: item.role === role ? roleColors[role].text : colors.border,
+                          backgroundColor:
+                            (item.accessStatus ?? "allowed") === "allowed"
+                              ? colors.successLight
+                              : (item.accessStatus ?? "allowed") === "pending"
+                              ? colors.warningLight
+                              : "#fee2e2",
                         },
                       ]}
-                      activeOpacity={0.8}
                     >
-                      <Text style={[styles.roleBtnText, { color: item.role === role ? roleColors[role].text : colors.mutedForeground }]}>
-                        {t(role)}
+                      <Text
+                        style={[
+                          styles.accessText,
+                          {
+                            color:
+                              (item.accessStatus ?? "allowed") === "allowed"
+                                ? colors.success
+                                : (item.accessStatus ?? "allowed") === "pending"
+                                ? colors.warning
+                                : colors.destructive,
+                          },
+                        ]}
+                      >
+                        {t(item.accessStatus ?? "allowed")}
                       </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={[styles.actionsCell, styles.actionsCol]}>
-                <TouchableOpacity
-                  onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: item.uid } } as any)}
-                  style={[styles.userActionBtn, { backgroundColor: colors.navyLight }]}
-                >
-                  <Feather name="edit-2" size={14} color={colors.primary} />
-                  <Text style={[styles.userActionText, { color: colors.primary }]}>{t("edit")}</Text>
-                </TouchableOpacity>
-                {item.uid !== currentUser.uid ? (
-                  <View style={styles.rowActions}>
-                    <TouchableOpacity
-                      onPress={() => handleChangeAccess(item.uid, "allowed")}
-                      style={[styles.userActionBtn, { backgroundColor: colors.successLight }]}
-                    >
-                      <Feather name="check" size={14} color={colors.success} />
-                      <Text style={[styles.userActionText, { color: colors.success }]}>{t("allow")}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleChangeAccess(item.uid, "denied")}
-                      style={[styles.userActionBtn, { backgroundColor: "#fee2e2" }]}
-                    >
-                      <Feather name="x-circle" size={14} color={colors.destructive} />
-                      <Text style={[styles.userActionText, { color: colors.destructive }]}>{t("deny")}</Text>
-                    </TouchableOpacity>
+                    </View>
+                    <View style={styles.roleButtons}>
+                      {ROLES.map((role) => (
+                        <TouchableOpacity
+                          key={role}
+                          onPress={() => handleChangeRole(item.uid, role)}
+                          style={[
+                            styles.roleBtn,
+                            {
+                              backgroundColor: item.role === role ? roleColors[role].bg : colors.muted,
+                              borderColor: item.role === role ? roleColors[role].text : colors.border,
+                            },
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[styles.roleBtnText, { color: item.role === role ? roleColors[role].text : colors.mutedForeground }]}>
+                            {t(role)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                ) : null}
-              </View>
-            </View>
-          )}
-          showsVerticalScrollIndicator={false}
-        />
+
+                  <View style={[styles.actionsCell, styles.actionsCol]}>
+                    <TouchableOpacity
+                      onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: item.uid } } as any)}
+                      style={[styles.userActionBtn, { backgroundColor: colors.navyLight }]}
+                    >
+                      <Feather name="edit-2" size={14} color={colors.primary} />
+                      <Text style={[styles.userActionText, { color: colors.primary }]}>{t("edit")}</Text>
+                    </TouchableOpacity>
+                    {item.uid !== currentUser.uid ? (
+                      <View style={styles.rowActions}>
+                        <TouchableOpacity
+                          onPress={() => handleChangeAccess(item.uid, "allowed")}
+                          style={[styles.userActionBtn, { backgroundColor: colors.successLight }]}
+                        >
+                          <Feather name="check" size={14} color={colors.success} />
+                          <Text style={[styles.userActionText, { color: colors.success }]}>{t("allow")}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleChangeAccess(item.uid, "denied")}
+                          style={[styles.userActionBtn, { backgroundColor: "#fee2e2" }]}
+                        >
+                          <Feather name="x-circle" size={14} color={colors.destructive} />
+                          <Text style={[styles.userActionText, { color: colors.destructive }]}>{t("deny")}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              )}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </ScrollView>
       )}
     </View>
     </RoleRouteGate>

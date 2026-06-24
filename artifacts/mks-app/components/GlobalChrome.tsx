@@ -2,7 +2,7 @@ import { Feather } from "@/components/AppIcons";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Image,
@@ -28,9 +28,12 @@ type MenuItem = {
 export function GlobalChrome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const { t } = useLanguage();
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const isDocumentScreen = pathname?.startsWith("/document/");
+  const topOffset = insets.top + (isDocumentScreen ? 42 : 4);
 
   function handleDashboardPress() {
     setMenuOpen(false);
@@ -54,7 +57,7 @@ export function GlobalChrome() {
   const initials = (user?.displayName ?? user?.email ?? "U").trim().charAt(0).toUpperCase();
 
   return (
-    <View pointerEvents="box-none" style={[styles.container, { top: insets.top + 4, left: 10, right: 10 }]}>
+    <View pointerEvents="box-none" style={[styles.container, { top: topOffset, left: 10, right: 10 }]}>
       <TouchableOpacity
         onPress={handleDashboardPress}
         activeOpacity={0.82}
