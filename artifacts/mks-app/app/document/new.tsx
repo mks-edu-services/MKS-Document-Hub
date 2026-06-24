@@ -330,8 +330,11 @@ export default function NewDocumentScreen() {
     });
   }
 
-  const registryFieldDefinitions = getRegistryFieldDefinitions();
   const isRegistryTemplate = (selectedTemplate?.id ?? form.templateId) === REGISTRY_TEMPLATE_ID;
+  const registryFieldDefinitions =
+    isRegistryTemplate && selectedTemplate && selectedTemplate.fields.length > 0
+      ? selectedTemplate.fields
+      : getRegistryFieldDefinitions();
 
   async function handleSave(status: "draft" | "active") {
     const effectiveTitle = isRegistryTemplate

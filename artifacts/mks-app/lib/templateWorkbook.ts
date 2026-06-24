@@ -31,6 +31,30 @@ type WorkbookColumn = {
   fieldId?: string;
 };
 
+const BASE_COLUMN_TEMPLATE_FIELD_IDS: Record<string, string[]> = {
+  title: ["title"],
+  service_type: ["serviceType", "service_type"],
+  status: ["status"],
+  index: ["index"],
+  seat_prefix: ["seatPrefix", "seat_prefix"],
+  certificate_no: ["certificateNo", "certificate_no"],
+  seat_no: ["seatNo", "seat_no", "seatNumber", "seat_number"],
+  year: ["year", "academicYear", "academic_year"],
+  student_name: ["studentName", "student_name", "name"],
+  father_name: ["fatherName", "father_name"],
+  township: ["township"],
+  submitted_by: ["submittedBy", "submitted_by"],
+  submitted_date: ["submittedDate", "submitted_date"],
+  received_date: ["receivedDate", "received_date"],
+  returned_date: ["returnedDate", "returned_date"],
+  issued_by: ["issuedBy", "issued_by"],
+  school: ["school"],
+  academic_year: ["academicYear", "academic_year"],
+  agent: ["agent"],
+  date: ["date"],
+  notes: ["notes"],
+};
+
 const BASE_COLUMNS: WorkbookColumn[] = [
   { key: "row_status", header: "row_status", label: "Row Status", width: 18, kind: "base" },
   { key: "template_id", header: "template_id", label: "Template ID", width: 24, kind: "base" },
@@ -80,6 +104,18 @@ function getFieldLabel(field: TemplateField): string {
   return field.label || field.labelMy || field.labelEn || field.id;
 }
 
+function normalizeFieldId(value: string) {
+  return normalizeKey(value).replace(/[^a-z0-9]+/g, "");
+}
+
+function getTemplateFieldLabel(template: Template, fieldKey: string): string | undefined {
+  const candidateIds = BASE_COLUMN_TEMPLATE_FIELD_IDS[fieldKey];
+  if (!candidateIds || candidateIds.length === 0) return undefined;
+  const normalizedCandidateIds = new Set(candidateIds.map((value) => normalizeFieldId(value)));
+  const field = template.fields.find((item) => normalizedCandidateIds.has(normalizeFieldId(item.id)));
+  return field ? getFieldLabel(field) : undefined;
+}
+
 function getColumnValueKeys(column: WorkbookColumn): string[] {
   if (column.kind === "custom" && column.fieldId) {
     return [column.fieldId, `custom_${column.fieldId}`, column.header];
@@ -117,7 +153,15 @@ function buildCustomColumns(template: Template): WorkbookColumn[] {
 }
 
 export function getTemplateWorkbookColumns(template: Template): WorkbookColumn[] {
-  return [...BASE_COLUMNS, ...buildCustomColumns(template)];
+  const baseColumns = BASE_COLUMNS.map((column) => {
+    const label = getTemplateFieldLabel(template, column.key) || column.label;
+    return {
+      ...column,
+      label,
+      width: Math.max(column.width, Math.min(Math.max(label.length + 4, 10), 42)),
+    };
+  });
+  return [...baseColumns, ...buildCustomColumns(template)];
 }
 
 export function buildTemplateWorkbookRow(doc: Document, template: Template): TemplateWorkbookRow {

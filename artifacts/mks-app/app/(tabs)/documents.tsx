@@ -150,6 +150,14 @@ function getLocalizedTemplateSortLabel(
   const isEnglish = language === "en";
   const baseLabel = TEMPLATE_SORT_LABELS[columnKey];
   if (baseLabel) {
+    const normalizedFallback = fallbackLabel.trim();
+    if (
+      normalizedFallback &&
+      normalizedFallback !== baseLabel.en &&
+      normalizedFallback !== baseLabel.my
+    ) {
+      return normalizedFallback;
+    }
     return isEnglish ? baseLabel.en : baseLabel.my;
   }
 
@@ -353,27 +361,30 @@ export default function DocumentsScreen() {
     const registryFieldLabels = new Map<string, string>(
       getRegistryFieldDefinitions().map((field) => [field.id, language === "en" ? field.labelEn : field.labelMy]),
     );
+    const templateColumns = selectedTemplate ? getTemplateWorkbookColumns(selectedTemplate) : [];
+    const resolveTemplateColumnLabel = (key: string, fallbackLabel: string) =>
+      templateColumns.find((column) => column.key === key)?.label ?? fallbackLabel;
     const extraFieldKeys = Array.from(new Set(sorted.flatMap((doc) => Object.keys(doc.fields ?? {}))));
     const baseColumns = [
       { key: "index", label: t("serial") },
-      { key: "seatPrefix", label: language === "en" ? "Seat Prefix" : "ခုံ" },
-      { key: "certificateNo", label: language === "en" ? "Certificate No." : "အမှတ်" },
-      { key: "year", label: t("academicYear") },
+      { key: "seatPrefix", label: resolveTemplateColumnLabel("seat_prefix", language === "en" ? "Seat Prefix" : "ခုံ") },
+      { key: "certificateNo", label: resolveTemplateColumnLabel("certificate_no", language === "en" ? "Certificate No." : "အမှတ်") },
+      { key: "year", label: resolveTemplateColumnLabel("year", t("academicYear")) },
       { key: "name", label: t("studentName") },
-      { key: "fatherName", label: language === "en" ? "Father Name" : "အဖအမည်" },
-      { key: "township", label: language === "en" ? "Township" : "မြို့နယ်" },
-      { key: "submittedBy", label: language === "en" ? "Submitted By" : "အပ်နှံသူ" },
-      { key: "submittedDate", label: language === "en" ? "Submitted Date" : "အပ်နှံ ရက်စွဲ" },
-      { key: "receivedDate", label: language === "en" ? "Received Date" : "ရရှိ ရက်စွဲ" },
-      { key: "returnedDate", label: language === "en" ? "Returned Date" : "ပြန်ပို့ ရက်စွဲ" },
-      { key: "issuedBy", label: language === "en" ? "Issued By" : "ထုတ်ပေးသူ" },
+      { key: "fatherName", label: resolveTemplateColumnLabel("father_name", language === "en" ? "Father Name" : "အဖအမည်") },
+      { key: "township", label: resolveTemplateColumnLabel("township", language === "en" ? "Township" : "မြို့နယ်") },
+      { key: "submittedBy", label: resolveTemplateColumnLabel("submitted_by", language === "en" ? "Submitted By" : "အပ်နှံသူ") },
+      { key: "submittedDate", label: resolveTemplateColumnLabel("submitted_date", language === "en" ? "Submitted Date" : "အပ်နှံ ရက်စွဲ") },
+      { key: "receivedDate", label: resolveTemplateColumnLabel("received_date", language === "en" ? "Received Date" : "ရရှိ ရက်စွဲ") },
+      { key: "returnedDate", label: resolveTemplateColumnLabel("returned_date", language === "en" ? "Returned Date" : "ပြန်ပို့ ရက်စွဲ") },
+      { key: "issuedBy", label: resolveTemplateColumnLabel("issued_by", language === "en" ? "Issued By" : "ထုတ်ပေးသူ") },
       { key: "notes", label: t("notes") },
-      { key: "serviceType", label: t("serviceType") },
+      { key: "serviceType", label: resolveTemplateColumnLabel("service_type", t("serviceType")) },
       { key: "school", label: t("schoolInstitution") },
       { key: "agent", label: t("agentProcessedBy") },
       { key: "title", label: t("documentTitle") },
-      { key: "studentName", label: t("studentName") },
-      { key: "academicYear", label: t("academicYear") },
+      { key: "studentName", label: resolveTemplateColumnLabel("student_name", t("studentName")) },
+      { key: "academicYear", label: resolveTemplateColumnLabel("academic_year", t("academicYear")) },
       { key: "date", label: t("date") },
       { key: "status", label: t("statusLabel") },
       { key: "scanSearchKey", label: language === "en" ? "Scan Search Key" : "ရှာဖွေရန်သော့ချက်" },

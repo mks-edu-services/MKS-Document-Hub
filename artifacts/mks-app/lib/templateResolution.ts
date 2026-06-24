@@ -48,13 +48,6 @@ export function resolveTemplateForDocument(
   serviceTypes: ServiceType[] = [],
 ) {
   if (!document) return null;
-  const serviceTypeId = resolveServiceTypeId(document.serviceType ?? "", serviceTypes);
-  const matchingByService = templates.filter(
-    (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === serviceTypeId,
-  );
-  const preferredByService = pickPreferredTemplate(matchingByService);
-  if (preferredByService) return preferredByService;
-
   if (document.templateName) {
     const byName = templates.find((template) => templateMatchesText(template, document.templateName));
     if (byName) return byName;
@@ -64,6 +57,13 @@ export function resolveTemplateForDocument(
     const byId = templates.find((template) => template.id === document.templateId);
     if (byId) return byId;
   }
+
+  const serviceTypeId = resolveServiceTypeId(document.serviceType ?? "", serviceTypes);
+  const matchingByService = templates.filter(
+    (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === serviceTypeId,
+  );
+  const preferredByService = pickPreferredTemplate(matchingByService);
+  if (preferredByService) return preferredByService;
 
   return pickPreferredTemplate(templates);
 }
