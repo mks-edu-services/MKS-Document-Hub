@@ -1,4 +1,5 @@
 import { Feather } from "@/components/AppIcons";
+import { PasswordField } from "@/components/PasswordField";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
@@ -25,7 +26,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
-  const { user, signOut, updateProfile, deleteCurrentAccount, isFirebaseReady } = useAuth();
+  const { user, signOut, updateProfile, deleteCurrentAccount, changePassword, isFirebaseReady } = useAuth();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [editingName, setEditingName] = useState(false);
@@ -36,7 +37,11 @@ export default function ProfileScreen() {
   const [username, setUsername] = useState(user?.username ?? "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
   const [agentName, setAgentName] = useState(user?.agentName ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
 
   const [myDocs, setMyDocs] = useState<Document[]>([]);
@@ -99,6 +104,30 @@ export default function ProfileScreen() {
       Alert.alert(t("error"), t("failedToUpdateAgentName"));
     }
     setSaving(false);
+  }
+
+  async function handleChangePassword() {
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert(t("error"), t("fieldRequired"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t("error"), t("passwordMismatch"));
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      Alert.alert(t("changePassword"), t("passwordUpdated"));
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? t("failedToUpdatePassword"));
+    } finally {
+      setChangingPassword(false);
+    }
   }
 
   async function handlePickPhoto() {
@@ -400,6 +429,43 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("changePassword")}</Text>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>{t("passwordResetHint")}</Text>
+
+        <PasswordField
+          label={t("currentPassword")}
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          placeholder={t("currentPassword")}
+        />
+        <PasswordField
+          label={t("newPassword")}
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder={t("newPassword")}
+        />
+        <PasswordField
+          label={t("confirmNewPassword")}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder={t("confirmNewPassword")}
+        />
+
+        <TouchableOpacity
+          onPress={handleChangePassword}
+          disabled={changingPassword}
+          style={[styles.changePasswordBtn, { backgroundColor: colors.primary }]}
+        >
+          {changingPassword ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.changePasswordText}>{t("changePassword")}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("account")}</Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <Text style={[styles.memberSince, { color: colors.mutedForeground }]}>
@@ -517,6 +583,14 @@ const styles = StyleSheet.create({
   rolePillInline: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, alignSelf: "flex-start", marginTop: 2 },
   rolePillText: { fontSize: 12, fontWeight: "700" },
   memberSince: { fontSize: 13 },
+  changePasswordBtn: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  changePasswordText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   signOutBtn: {
     marginHorizontal: 16,
     marginTop: 20,

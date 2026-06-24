@@ -54,13 +54,13 @@ export function GlobalChrome() {
   const initials = (user?.displayName ?? user?.email ?? "U").trim().charAt(0).toUpperCase();
 
   return (
-    <View pointerEvents="box-none" style={[styles.container, { top: insets.top + 8, left: 12, right: 12 }]}>
+    <View pointerEvents="box-none" style={[styles.container, { top: insets.top + 4, left: 10, right: 10 }]}>
       <TouchableOpacity
         onPress={handleDashboardPress}
         activeOpacity={0.82}
-        style={[styles.dashboardButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[styles.dashboardButton, { backgroundColor: "rgba(255,255,255,0.84)", borderColor: "rgba(255,255,255,0.42)" }]}
       >
-        <Feather name="home" size={16} color={colors.primary} />
+        <Feather name="home" size={14} color={colors.primary} />
         <Text style={[styles.dashboardText, { color: colors.primary }]}>{t("dashboard")}</Text>
       </TouchableOpacity>
 
@@ -69,9 +69,9 @@ export function GlobalChrome() {
         <TouchableOpacity
           onPress={() => setMenuOpen((value) => !value)}
           activeOpacity={0.82}
-          style={[styles.menuButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.menuButton, { backgroundColor: "rgba(255,255,255,0.84)", borderColor: "rgba(255,255,255,0.42)" }]}
         >
-          <Feather name={menuOpen ? "x" : "menu"} size={18} color={colors.foreground} />
+          <Feather name={menuOpen ? "x" : "menu"} size={16} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -155,36 +155,36 @@ const styles = StyleSheet.create({
   dashboardButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    maxWidth: "55%",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: "52%",
   },
   dashboardText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
   },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   menuButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.18)",
+    backgroundColor: "rgba(15, 23, 42, 0.12)",
     alignItems: "flex-end",
-    paddingTop: 72,
-    paddingRight: 12,
+    paddingTop: 60,
+    paddingRight: 10,
   },
   dropdown: {
     width: 280,

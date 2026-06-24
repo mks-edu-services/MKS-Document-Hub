@@ -257,14 +257,6 @@ export default function AdminScreen() {
                 <Feather name="plus" size={18} color="#fff" />
                 <Text style={styles.addTemplateText}>{t("createNewTemplate")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: "new" } } as any)}
-                style={[styles.addTemplateBtnFull, { backgroundColor: colors.primary }]}
-                activeOpacity={0.85}
-              >
-                <Feather name="user-plus" size={18} color="#fff" />
-                <Text style={styles.addTemplateText}>{t("createUser")}</Text>
-              </TouchableOpacity>
             </View>
           }
           ListEmptyComponent={
@@ -465,11 +457,21 @@ export default function AdminScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
           ListHeaderComponent={
-            <View style={[styles.tableHeader, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <Text style={[styles.tableHeaderCell, styles.accountCol, { color: colors.mutedForeground }]}>{t("account")}</Text>
-              <Text style={[styles.tableHeaderCell, styles.contactCol, { color: colors.mutedForeground }]}>{t("email")}</Text>
-              <Text style={[styles.tableHeaderCell, styles.statusCol, { color: colors.mutedForeground }]}>{t("accessStatus")}</Text>
-              <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}</Text>
+            <View style={styles.usersHeader}>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: "/user/[uid]", params: { uid: "new" } } as any)}
+                style={[styles.addTemplateBtnFull, { backgroundColor: colors.primary }]}
+                activeOpacity={0.85}
+              >
+                <Feather name="user-plus" size={18} color="#fff" />
+                <Text style={styles.addTemplateText}>{t("createUser")}</Text>
+              </TouchableOpacity>
+              <View style={[styles.tableHeader, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Text style={[styles.tableHeaderCell, styles.accountCol, { color: colors.mutedForeground }]}>{t("account")}</Text>
+                <Text style={[styles.tableHeaderCell, styles.contactCol, { color: colors.mutedForeground }]}>{t("email")}</Text>
+                <Text style={[styles.tableHeaderCell, styles.statusCol, { color: colors.mutedForeground }]}>{t("accessStatus")}</Text>
+                <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}</Text>
+              </View>
             </View>
           }
           ListEmptyComponent={
@@ -625,6 +627,7 @@ const styles = StyleSheet.create({
   },
   tabText: { fontSize: 13, fontWeight: "600" },
   listContent: { paddingHorizontal: 16, paddingTop: 14 },
+  usersHeader: { gap: 10, marginBottom: 16 },
   headerActions: { flexDirection: "column", gap: 10, marginBottom: 16 },
   addTemplateBtnFull: {
     flex: 1,
