@@ -1,6 +1,6 @@
-import { resolveApiBaseUrl } from "./apiBase";
+import { resolveDriveApiBaseUrl } from "./apiBase";
 
-const API_BASE = resolveApiBaseUrl();
+const API_BASE = resolveDriveApiBaseUrl();
 
 export interface DriveUploadResult {
   fileId: string;
@@ -108,9 +108,9 @@ export function buildDriveDownloadUrl(value?: string): string {
 function apiHostHint() {
   if (typeof window === "undefined") return "";
   try {
-    const baseOrigin = new URL(API_BASE, window.location.origin).origin;
-    if (baseOrigin === window.location.origin) {
-      return " The request is reaching the web app host instead of the backend API host. Set EXPO_PUBLIC_API_BASE_URL to the deployed API server.";
+    const driveBaseOrigin = new URL(API_BASE, window.location.origin).origin;
+    if (driveBaseOrigin === window.location.origin) {
+      return " The request is reaching the web app host instead of the Drive API host. Set EXPO_PUBLIC_DRIVE_API_BASE_URL to the deployed Drive API server.";
     }
   } catch {
     return "";
@@ -121,7 +121,7 @@ function apiHostHint() {
 function isDriveApiConfigured() {
   if (typeof window === "undefined") return true;
   try {
-    if (process.env.EXPO_PUBLIC_API_BASE_URL) return true;
+    if (process.env.EXPO_PUBLIC_DRIVE_API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL) return true;
     return isLocalhost(window.location.hostname);
   } catch {
     return false;
@@ -136,7 +136,7 @@ function isLocalhost(hostname: string) {
 function requireDriveApiConfigured(context: string) {
   if (isDriveApiConfigured()) return;
   throw new Error(
-    `${context} is not configured yet. Set EXPO_PUBLIC_API_BASE_URL to a deployed backend API server before using Google Drive features.`,
+    `${context} is not configured yet. Set EXPO_PUBLIC_DRIVE_API_BASE_URL to a deployed Drive API server before using Google Drive features.`,
   );
 }
 
