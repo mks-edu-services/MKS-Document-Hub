@@ -34,6 +34,11 @@ This file is a short handoff for the next chat.
 
 - Do **not** start the Excel upload to create template flow yet.
 - That work should only begin when the user explicitly says: **“Excel upload to Create Template”**.
+- If the user wants a small follow-up first, the next safe task is to polish the `Profile` page and `Dashboard` avatar style for mobile so the picture feels a little larger and cleaner.
+
+## Suggested opening for the next chat
+
+- “NEW_CHAT_REFERENCE.md ကို reference လုပ်ပြီး `Create Template / Excel upload flow` ကိုပဲ ဆက်လုပ်ပါ။ အရင်ဆုံး `Profile` page နဲ့ `Dashboard` avatar style ကို mobile မှာ နည်းနည်းပိုကြီး/ပိုကောင်းအောင် ချောပေးနိုင်ရင် အဲဒါလည်းထည့်ပေးပါ။”
 
 ## Latest verified deploy
 
