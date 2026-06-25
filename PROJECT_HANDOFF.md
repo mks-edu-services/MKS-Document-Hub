@@ -800,7 +800,7 @@ This update makes the Drive helper layer usable without a Google Cloud billing-b
 ### Web deploy result
 
 - Latest successful web deploy after this update:
-  - Firebase Hosting release `sites/mksedudoc/releases/1782415279356000`
+  - Firebase Hosting release `sites/mksedudoc/releases/1782416454871000`
   - Live site `https://mksedudoc.web.app`
 
 ### Verification completed
@@ -810,7 +810,7 @@ This update makes the Drive helper layer usable without a Google Cloud billing-b
 
 ### What remains for the next chat
 
-1. Wire the web app UI flows to consume the Drive helper URL everywhere preview/upload/search status is shown.
+1. Keep adding rows to the mapping sheet whenever a new Drive folder path needs to be linked.
 2. If needed, expand the Apps Script endpoints for richer preview metadata or import/export helpers.
 3. Keep the mapping sheet as the single source of truth for Drive folder routing.
 
@@ -819,3 +819,4 @@ This update makes the Drive helper layer usable without a Google Cloud billing-b
 - Use the Apps Script URL above for Drive helper calls unless it is changed later.
 - Keep `EXPO_PUBLIC_API_BASE_URL` for general backend API work.
 - Keep `EXPO_PUBLIC_DRIVE_API_BASE_URL` for Drive helper / preview / mapping work.
+- The web app preview/upload/search flow is already routed through the Drive helper default; only future mapping rows should be needed for new folders.
