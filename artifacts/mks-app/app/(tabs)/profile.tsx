@@ -164,20 +164,28 @@ export default function ProfileScreen() {
   }
 
   async function handleSignOut() {
-    Alert.alert(t("signOut"), t("signOutConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("signOut"),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } finally {
-            router.replace("/(auth)");
-          }
-        },
-      },
-    ]);
+    const confirmSignOut =
+      Platform.OS === "web"
+        ? window.confirm(t("signOutConfirm"))
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(t("signOut"), t("signOutConfirm"), [
+              { text: t("cancel"), style: "cancel", onPress: () => resolve(false) },
+              { text: t("signOut"), style: "destructive", onPress: () => resolve(true) },
+            ]);
+          });
+
+    if (!confirmSignOut) return;
+
+    try {
+      await signOut();
+    } finally {
+      router.replace("/");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.setTimeout(() => {
+          window.location.replace("/");
+        }, 0);
+      }
+    }
   }
 
   async function handleDeleteAccount() {
