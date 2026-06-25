@@ -105,6 +105,28 @@ export default function NewTemplateScreen() {
   function openImportPicker() {
     const importFromBuffer = async (buffer: ArrayBuffer) => {
       const imported = parseTemplateWorkbookFields(buffer);
+      const fieldCount = imported.fields.length;
+      const previewLines = [
+        `Template: ${imported.name || "—"}`,
+        `Description: ${imported.description || "—"}`,
+        `Fields: ${fieldCount}`,
+        fieldCount > 0 ? `First field: ${imported.fields[0].label}` : "First field: —",
+      ];
+
+      const confirmImport = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          "Import workbook?",
+          previewLines.join("\n"),
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Import", onPress: () => resolve(true) },
+          ],
+          { cancelable: true },
+        );
+      });
+
+      if (!confirmImport) return;
+
       applyImportedFields({
         name: imported.name,
         description: imported.description,
