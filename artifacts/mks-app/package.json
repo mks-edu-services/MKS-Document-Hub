@@ -57,6 +57,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "expo-document-picker": "~13.0.3",
     "firebase": "^12.13.0",
     "lucide-react": "catalog:",
     "xlsx": "^0.18.5"

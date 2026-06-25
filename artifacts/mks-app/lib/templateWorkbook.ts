@@ -106,9 +106,35 @@ function normalizeKey(value: unknown): string {
 
 function splitList(raw: string): string[] {
   return raw
-    .split(/[,|]/g)
+    .split(/[,|\n\r]+/g)
     .map((part) => part.trim())
     .filter(Boolean);
+}
+
+function normalizeTemplateName(value: string): string {
+  return value
+    .replace(/^(template|workbook|sheet)\s*[:\-]?\s*/i, "")
+    .replace(/\b(workbook|template)\b$/i, "")
+    .trim();
+}
+
+function parseBoolean(raw: string): boolean {
+  return /^(1|true|yes|y|required|mandatory|checked)$/i.test(raw.trim());
+}
+
+function normalizeFieldType(rawValue: string): TemplateField["type"] {
+  const compact = normalizeKey(rawValue).replace(/[^a-z]/g, "");
+  if (compact === "textarea" || compact === "longtext" || compact === "multiline") return "textarea";
+  if (compact === "date" || compact === "datetime") return "date";
+  if (compact === "number" || compact === "numeric" || compact === "decimal" || compact === "integer") return "number";
+  if (compact === "select" || compact === "dropdown" || compact === "choice" || compact === "options") return "select";
+  if (compact === "email" || compact === "e mail") return "email";
+  if (compact === "phone" || compact === "tel" || compact === "mobile") return "phone";
+  return "text";
+}
+
+function isTruthyContent(value: unknown) {
+  return normalizeText(value).length > 0;
 }
 
 function getFieldLabel(field: TemplateField): string {
@@ -378,83 +404,85 @@ export function parseTemplateWorkbookFields(
 ): { name?: string; description?: string; fields: TemplateWorkbookFieldDraft[]; sourceSheet?: string } {
   const workbook = XLSX.read(workbookBuffer, { type: "array" });
   const preferredSheet =
-    workbook.SheetNames.find((name) => /field guide|guide/i.test(name)) ??
+    workbook.SheetNames.find((name) => /field guide|guide|field/i.test(name)) ??
     workbook.SheetNames.find((name) => /template/i.test(name)) ??
     workbook.SheetNames[0];
   const sheet = workbook.Sheets[preferredSheet];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
 
+  const fieldHeaderAliases: Record<string, string[]> = {
+    id: ["field_id", "id"],
+    label: ["label", "field_label", "name", "field_name"],
+    type: ["type", "field_type", "kind"],
+    required: ["required", "is_required", "mandatory"],
+    placeholder: ["placeholder", "hint", "note", "notes"],
+    options: ["options", "choices", "values"],
+  };
+
   const headerRowIndex = rows.findIndex((row) => {
-    const normalized = row.map((cell) => normalizeKey(cell));
-    return normalized.includes("field_id") || (normalized.includes("label") && normalized.includes("type"));
+    const normalized = row.map((cell) => normalizeKey(cell).replace(/[^a-z0-9]+/g, "_"));
+    return (
+      normalized.some((cell) => fieldHeaderAliases.label.includes(cell)) &&
+      normalized.some((cell) => fieldHeaderAliases.type.includes(cell))
+    ) || normalized.includes("field_id");
   });
 
-  const resolvedHeaderIndex = headerRowIndex >= 0 ? headerRowIndex : 0;
-  const headers = (rows[resolvedHeaderIndex] ?? []).map((cell) => normalizeKey(cell));
-  const normalizedHeaders = headers.map((header) => header.replace(/[^a-z0-9]+/g, "_"));
+  const resolvedHeaderIndex = headerRowIndex >= 0 ? headerRowIndex : -1;
+  const headers = resolvedHeaderIndex >= 0 ? (rows[resolvedHeaderIndex] ?? []).map((cell) => normalizeKey(cell).replace(/[^a-z0-9]+/g, "_")) : [];
+  const findIndex = (aliases: string[]) => headers.findIndex((header) => aliases.includes(header));
 
-  const labelIndex =
-    normalizedHeaders.findIndex((header) => /^(label|field_label|name)$/i.test(header)) >= 0
-      ? normalizedHeaders.findIndex((header) => /^(label|field_label|name)$/i.test(header))
-      : -1;
-  const typeIndex =
-    normalizedHeaders.findIndex((header) => /^(type|field_type)$/i.test(header)) >= 0
-      ? normalizedHeaders.findIndex((header) => /^(type|field_type)$/i.test(header))
-      : -1;
-  const requiredIndex =
-    normalizedHeaders.findIndex((header) => /^(required|is_required)$/i.test(header)) >= 0
-      ? normalizedHeaders.findIndex((header) => /^(required|is_required)$/i.test(header))
-      : -1;
-  const placeholderIndex =
-    normalizedHeaders.findIndex((header) => /^(placeholder|hint|notes?)$/i.test(header)) >= 0
-      ? normalizedHeaders.findIndex((header) => /^(placeholder|hint|notes?)$/i.test(header))
-      : -1;
-  const optionsIndex =
-    normalizedHeaders.findIndex((header) => /^(options|choices|values)$/i.test(header)) >= 0
-      ? normalizedHeaders.findIndex((header) => /^(options|choices|values)$/i.test(header))
-      : -1;
+  const labelIndex = findIndex(fieldHeaderAliases.label);
+  const typeIndex = findIndex(fieldHeaderAliases.type);
+  const requiredIndex = findIndex(fieldHeaderAliases.required);
+  const placeholderIndex = findIndex(fieldHeaderAliases.placeholder);
+  const optionsIndex = findIndex(fieldHeaderAliases.options);
+  const idIndex = findIndex(fieldHeaderAliases.id);
 
   const fields: TemplateWorkbookFieldDraft[] = [];
-  for (const row of rows.slice(resolvedHeaderIndex + 1)) {
+  const parseRow = (row: unknown[]) => {
     const label = normalizeText(labelIndex >= 0 ? row[labelIndex] : row[0]);
-    if (!label) continue;
-    const typeRaw = normalizeKey(typeIndex >= 0 ? row[typeIndex] : "");
-    const rawType = typeRaw.replace(/[^a-z]/g, "");
-    const type =
-      rawType === "textarea" || rawType === "longtext" ? "textarea" :
-      rawType === "date" ? "date" :
-      rawType === "number" ? "number" :
-      rawType === "select" || rawType === "dropdown" || rawType === "choice" ? "select" :
-      rawType === "email" ? "email" :
-      rawType === "phone" || rawType === "tel" ? "phone" :
-      "text";
-    const requiredValue = normalizeKey(requiredIndex >= 0 ? row[requiredIndex] : "");
+    if (!label) return;
+    const explicitId = normalizeText(idIndex >= 0 ? row[idIndex] : "");
     const placeholder = normalizeText(placeholderIndex >= 0 ? row[placeholderIndex] : "");
     const options = splitList(normalizeText(optionsIndex >= 0 ? row[optionsIndex] : ""));
+    const type = normalizeFieldType(normalizeText(typeIndex >= 0 ? row[typeIndex] : ""));
     fields.push({
-      id: `field_${fields.length + 1}`,
+      id: explicitId || `field_${fields.length + 1}_${label.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase() || "item"}`,
       label,
       type,
-      required: /^(1|true|yes|y|required)$/i.test(requiredValue),
+      required: parseBoolean(normalizeText(requiredIndex >= 0 ? row[requiredIndex] : "")),
       placeholder: placeholder || undefined,
       options: options.length > 0 ? options : undefined,
     });
+  };
+
+  if (resolvedHeaderIndex >= 0) {
+    for (const row of rows.slice(resolvedHeaderIndex + 1)) {
+      if (!row.some(isTruthyContent)) continue;
+      parseRow(row);
+    }
+  } else {
+    for (const row of rows) {
+      if (!row.some(isTruthyContent)) continue;
+      parseRow(row);
+    }
   }
 
-  const nameCandidates = [
-    rows[0]?.[0],
-    rows[1]?.[0],
-    rows[0]?.[1],
-    rows[1]?.[1],
-  ]
-    .map((value) => normalizeText(value))
-    .filter(Boolean);
-  const description = rows[1]?.[0] && normalizeText(rows[1]?.[0]).toLowerCase().includes("rows exported")
-    ? normalizeText(rows[1]?.[0])
-    : undefined;
+  const titleRow = rows.find((row) => {
+    const first = normalizeText(row[0]);
+    return first && /template|workbook|field guide/i.test(first);
+  }) ?? rows[0];
+  const rawName = normalizeText(titleRow?.[0] ?? "");
+  const name = normalizeTemplateName(rawName) || undefined;
+
+  const descriptionRow = rows.find((row) => {
+    const text = row.map((cell) => normalizeText(cell)).join(" ").toLowerCase();
+    return text.includes("rows exported") || text.includes("prefilled") || text.includes("field guide");
+  });
+  const description = descriptionRow ? descriptionRow.map((cell) => normalizeText(cell)).filter(Boolean).join(" ") : undefined;
 
   return {
-    name: nameCandidates[0] || undefined,
+    name,
     description,
     fields,
     sourceSheet: preferredSheet,

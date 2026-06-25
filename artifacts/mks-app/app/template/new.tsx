@@ -1,5 +1,6 @@
 import { Feather } from "@/components/AppIcons";
 import * as Haptics from "expo-haptics";
+import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -102,40 +103,63 @@ export default function NewTemplateScreen() {
   }
 
   function openImportPicker() {
-    if (Platform.OS !== "web") {
-      Alert.alert("Error", "Excel import is supported on web/desktop only for now.");
+    const importFromBuffer = async (buffer: ArrayBuffer) => {
+      const imported = parseTemplateWorkbookFields(buffer);
+      applyImportedFields({
+        name: imported.name,
+        description: imported.description,
+        fields: imported.fields.map((field) => ({
+          id: field.id,
+          label: field.label,
+          type: field.type,
+          required: field.required,
+          placeholder: field.placeholder,
+          options: field.options ?? [],
+        })),
+      });
+      Alert.alert("Imported", `Workbook ထဲက field ${imported.fields.length} ခုကို template editor ထဲသို့ယူပြီးပါပြီ။`);
+    };
+
+    setImportingWorkbook(true);
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".xlsx,.xls";
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return setImportingWorkbook(false);
+        try {
+          await importFromBuffer(await file.arrayBuffer());
+        } catch (error: any) {
+          Alert.alert("Error", error?.message ?? "Excel workbook ကိုမဖတ်နိုင်ပါ။");
+        } finally {
+          setImportingWorkbook(false);
+        }
+      };
+      input.click();
       return;
     }
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".xlsx,.xls";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      setImportingWorkbook(true);
+
+    void (async () => {
       try {
-        const buffer = await file.arrayBuffer();
-        const imported = parseTemplateWorkbookFields(buffer);
-        applyImportedFields({
-          name: imported.name?.replace(/\s*(Workbook|Template)\s*$/i, "").trim() || imported.name,
-          description: imported.description,
-          fields: imported.fields.map((field) => ({
-            id: field.id,
-            label: field.label,
-            type: field.type,
-            required: field.required,
-            placeholder: field.placeholder,
-            options: field.options ?? [],
-          })),
+        const result = await DocumentPicker.getDocumentAsync({
+          type: [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+          ],
+          copyToCacheDirectory: true,
+          multiple: false,
         });
-        Alert.alert("Imported", `Workbook ထဲက field ${imported.fields.length} ခုကို template editor ထဲသို့ယူပြီးပါပြီ။`);
+        if (result.canceled || !result.assets?.[0]?.uri) return;
+        const response = await fetch(result.assets[0].uri);
+        const buffer = await response.arrayBuffer();
+        await importFromBuffer(buffer);
       } catch (error: any) {
         Alert.alert("Error", error?.message ?? "Excel workbook ကိုမဖတ်နိုင်ပါ။");
       } finally {
         setImportingWorkbook(false);
       }
-    };
-    input.click();
+    })();
   }
 
   function moveField(id: string, dir: "up" | "down") {

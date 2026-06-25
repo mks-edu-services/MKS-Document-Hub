@@ -62,9 +62,9 @@ MKS Document Hub is a document-management app for MKS Education Service. It is d
 
 ### 4.4 Template Creation
 
-- `Create Template` now supports two paths:
+- `Create Template` now supports three paths:
   - manual field-by-field template authoring
-  - Excel workbook import to prefill name, description, and field definitions
+  - Excel workbook import on web and mobile to prefill name, description, and field definitions
 - The workbook import is meant to speed up template setup from an existing spreadsheet
 - The edit-template screen also retains workbook actions for blank template export, records export, and workbook import/update
 

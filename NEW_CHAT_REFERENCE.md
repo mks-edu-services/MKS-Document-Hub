@@ -10,7 +10,7 @@ This file is a short handoff for the next chat.
 - The latest successful web deploy is live on Firebase Hosting.
 - The overall project handoff has also been updated in `PROJECT_HANDOFF.md`.
 - The mobile dashboard/profile avatar polish has been completed for cleaner small-screen presentation.
-- The `Create Template` screen now supports importing an Excel workbook to prefill template name/description/fields.
+- The `Create Template` screen now supports importing an Excel workbook on web and mobile to prefill template name/description/fields.
 
 ## Current Drive backend values
 
@@ -34,7 +34,7 @@ This file is a short handoff for the next chat.
 
 ## Important note for the next chat
 
-- The Excel upload to Create Template flow is now in progress and should be treated as the active follow-up.
+- The Excel upload to Create Template flow now supports mobile too.
 - If more workbook tuning is needed later, the next safe step is to refine the field inference rules in `artifacts/mks-app/lib/templateWorkbook.ts`.
 
 ## Suggested opening for the next chat
