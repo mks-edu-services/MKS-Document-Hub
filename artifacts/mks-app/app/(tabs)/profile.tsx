@@ -16,6 +16,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
@@ -165,7 +166,17 @@ export default function ProfileScreen() {
   async function handleSignOut() {
     Alert.alert(t("signOut"), t("signOutConfirm"), [
       { text: t("cancel"), style: "cancel" },
-      { text: t("signOut"), style: "destructive", onPress: signOut },
+      {
+        text: t("signOut"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await signOut();
+          } finally {
+            router.replace("/(auth)");
+          }
+        },
+      },
     ]);
   }
 
