@@ -754,3 +754,68 @@ This follow-up fixes the `/documents` sort panel so service-specific views now s
 ### Validation
 
 - `C:\PythonProject\MKS-Document-Hub\artifacts\mks-app\node_modules\.bin\tsc.cmd -p tsconfig.json --noEmit`
+
+## 25) June 2026 Update — Apps Script Drive Backend + Folder Mapping
+
+This update makes the Drive helper layer usable without a Google Cloud billing-backed API host by defaulting the app’s Drive bridge to a deployed Google Apps Script web app.
+
+### What changed
+
+- Added `resolveDriveApiBaseUrl()` in `artifacts/mks-app/lib/apiBase.ts`.
+- Drive helper requests now prefer `EXPO_PUBLIC_DRIVE_API_BASE_URL`, then `EXPO_PUBLIC_API_BASE_URL`, and finally the deployed Apps Script URL:
+  - `https://script.google.com/macros/s/AKfycbwSfyGSFqNTgoK38cpZtrrxEz18qH8IEz5GGiaaRyrcSpbCA1boZ_Iy4ZNgJo5L8VP_/exec`
+- Updated `artifacts/mks-app/lib/driveUpload.ts` so Drive upload/health/search errors point to the Drive-specific env var when the helper is misconfigured.
+- Added `EXPO_PUBLIC_DRIVE_API_BASE_URL` to `.env.example`.
+- Updated `scripts/deploy-web.cjs` so web deploys carry the Drive helper URL automatically.
+- Updated `DEPLOYMENT.md` and `replit.md` with the Google Apps Script Drive helper flow.
+
+### Apps Script backend
+
+- Apps Script project name: `MKS Document Hub API`
+- Web app URL:
+  - `https://script.google.com/macros/s/AKfycbwSfyGSFqNTgoK38cpZtrrxEz18qH8IEz5GGiaaRyrcSpbCA1boZ_Iy4ZNgJo5L8VP_/exec`
+- Health endpoint test response confirmed:
+  - `{"ok":true,"service":"MKS Document Hub API", ...}`
+- Sheet lookup confirmed against:
+  - Google Sheet ID `1i3YzFeytCR83T8usyFaYuFqQGO-6QfEU5gx27z5DXAQ`
+  - Tab name `Drive_Folder_Mapping`
+
+### Drive folder mapping workflow
+
+- Created an admin config folder in Google Drive:
+  - `MKS Document Hub Admin`
+    - `Configuration`
+    - `Exports`
+- A spreadsheet template was generated and then converted into a Google Sheet.
+- Final mapping use case is now simplified to a single row for the root folder:
+  - `Mapping ID`: `MAP-001`
+  - `Service Type`: `G12 အောင်လက်မှတ်`
+  - `Template Name`: `G12 အောင်လက်မှတ်စာရင်း`
+  - `Folder Name`: `အောင်လက်မှတ် စုစုပေါင်း`
+  - `Folder ID`: `1SrGyRm3p0htQVT-Sz5pikjJVOorBR-1k`
+  - `Parent Folder ID`: blank
+  - `Drive Path`: `/အောင်လက်မှတ် စုစုပေါင်း`
+  - `Status`: `Active`
+
+### Web deploy result
+
+- Latest successful web deploy after this update:
+  - Firebase Hosting release `sites/mksedudoc/releases/1782415279356000`
+  - Live site `https://mksedudoc.web.app`
+
+### Verification completed
+
+- `corepack pnpm@11.9.0 --filter @workspace/mks-app typecheck`
+- `corepack pnpm@11.9.0 deploy:web`
+
+### What remains for the next chat
+
+1. Wire the web app UI flows to consume the Drive helper URL everywhere preview/upload/search status is shown.
+2. If needed, expand the Apps Script endpoints for richer preview metadata or import/export helpers.
+3. Keep the mapping sheet as the single source of truth for Drive folder routing.
+
+### Reminder for future chats
+
+- Use the Apps Script URL above for Drive helper calls unless it is changed later.
+- Keep `EXPO_PUBLIC_API_BASE_URL` for general backend API work.
+- Keep `EXPO_PUBLIC_DRIVE_API_BASE_URL` for Drive helper / preview / mapping work.
