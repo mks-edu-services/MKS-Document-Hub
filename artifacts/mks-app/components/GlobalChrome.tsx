@@ -32,6 +32,9 @@ export function GlobalChrome() {
   const { t } = useLanguage();
   const { user, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  if (!user) {
+    return null;
+  }
   const isDocumentScreen = pathname?.startsWith("/document/");
   const topOffset = insets.top + (isDocumentScreen ? 42 : 4);
 

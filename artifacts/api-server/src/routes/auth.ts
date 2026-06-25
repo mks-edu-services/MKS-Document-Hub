@@ -45,4 +45,27 @@ authRouter.post("/auth/users/:uid/password", async (req, res) => {
   }
 });
 
+authRouter.delete("/auth/users/:uid", async (req, res) => {
+  const uid = typeof req.params.uid === "string" ? req.params.uid.trim() : "";
+  if (!uid) {
+    res.status(400).json({ error: "Missing user UID" });
+    return;
+  }
+
+  try {
+    const auth = getFirebaseAdminAuth();
+    await auth.deleteUser(uid);
+    res.json({ uid, deleted: true });
+  } catch (error: any) {
+    const code = String(error?.code ?? "");
+    if (code === "auth/user-not-found") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    req.log.error({ error, uid }, "Failed to delete user");
+    res.status(502).json({ error: error?.message ?? "Failed to delete user" });
+  }
+});
+
 export default authRouter;

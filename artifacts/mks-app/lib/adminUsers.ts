@@ -47,3 +47,15 @@ export async function updateAdminUserPassword(uid: string, password: string): Pr
     throw new Error(err.error ?? `Update password failed (${response.status})`);
   }
 }
+
+export async function deleteAdminUser(uid: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/auth/users/${encodeURIComponent(uid)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!response.ok) {
+    const err = await readJsonResponse<{ error?: string }>(response, "Delete user");
+    throw new Error(err.error ?? `Delete user failed (${response.status})`);
+  }
+}

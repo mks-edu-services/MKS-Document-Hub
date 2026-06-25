@@ -22,9 +22,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
-import { deleteTemplate, deleteServiceType, getAllUsers, getTemplates, createServiceType, updateServiceType, updateUserRole, updateUserProfile } from "@/lib/firestore";
+import { deleteTemplate, deleteServiceType, deleteUserProfile, getAllUsers, getTemplates, createServiceType, updateServiceType, updateUserRole, updateUserProfile } from "@/lib/firestore";
 import { AppUser, ServiceType, Template, UserRole } from "@/types";
 import { createServiceTypeId, getServiceTypeLabelFromValue } from "@/lib/serviceTypes";
+import { deleteAdminUser } from "@/lib/adminUsers";
 
 const ROLES: UserRole[] = ["admin", "editor", "viewer"];
 const roleColors: Record<UserRole, { bg: string; text: string }> = {
@@ -38,7 +39,7 @@ type TabType = "templates" | "serviceTypes" | "users";
 export default function AdminScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, isFirebaseReady } = useAuth();
+  const { user, signOut, isFirebaseReady } = useAuth();
   const { t, language } = useLanguage();
   const { serviceTypes } = useServiceTypes();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
@@ -195,6 +196,28 @@ export default function AdminScreen() {
     } catch (_) {
       Alert.alert(t("error"), t("failedToUpdateRole"));
     }
+  }
+
+  async function handleDeleteUser(item: AppUser) {
+    Alert.alert(t("deleteUser"), `${t("deleteUser")} "${item.displayName ?? item.username ?? item.email}"? ${t("cannotBeUndone")}`, [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("delete"),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteAdminUser(item.uid);
+            await deleteUserProfile(item.uid).catch(() => {});
+            setUsers((prev) => prev.filter((u) => u.uid !== item.uid));
+            if (item.uid === currentUser?.uid) {
+              await signOut();
+            }
+          } catch (error: any) {
+            Alert.alert(t("error"), error?.message ?? t("failedToUpdateRole"));
+          }
+        },
+      },
+    ]);
   }
 
   if (!currentUser) {
@@ -473,7 +496,7 @@ export default function AdminScreen() {
                     <Text style={[styles.tableHeaderCell, styles.accountCol, { color: colors.mutedForeground }]}>{t("account")}</Text>
                     <Text style={[styles.tableHeaderCell, styles.contactCol, { color: colors.mutedForeground }]}>{t("email")}</Text>
                     <Text style={[styles.tableHeaderCell, styles.statusCol, { color: colors.mutedForeground }]}>{t("accessStatus")}</Text>
-                    <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}</Text>
+                    <Text style={[styles.tableHeaderCell, styles.actionsCol, { color: colors.mutedForeground }]}>{t("edit")}/{t("allow")}/{t("delete")}</Text>
                   </View>
                 </View>
               }
@@ -579,24 +602,33 @@ export default function AdminScreen() {
                       <Feather name="edit-2" size={14} color={colors.primary} />
                       <Text style={[styles.userActionText, { color: colors.primary }]}>{t("edit")}</Text>
                     </TouchableOpacity>
-                    {item.uid !== currentUser.uid ? (
-                      <View style={styles.rowActions}>
-                        <TouchableOpacity
-                          onPress={() => handleChangeAccess(item.uid, "allowed")}
-                          style={[styles.userActionBtn, { backgroundColor: colors.successLight }]}
-                        >
-                          <Feather name="check" size={14} color={colors.success} />
-                          <Text style={[styles.userActionText, { color: colors.success }]}>{t("allow")}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleChangeAccess(item.uid, "denied")}
-                          style={[styles.userActionBtn, { backgroundColor: "#fee2e2" }]}
-                        >
-                          <Feather name="x-circle" size={14} color={colors.destructive} />
-                          <Text style={[styles.userActionText, { color: colors.destructive }]}>{t("deny")}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
+                    <View style={styles.rowActions}>
+                      {item.uid !== currentUser.uid ? (
+                        <>
+                          <TouchableOpacity
+                            onPress={() => handleChangeAccess(item.uid, "allowed")}
+                            style={[styles.userActionBtn, { backgroundColor: colors.successLight }]}
+                          >
+                            <Feather name="check" size={14} color={colors.success} />
+                            <Text style={[styles.userActionText, { color: colors.success }]}>{t("allow")}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleChangeAccess(item.uid, "denied")}
+                            style={[styles.userActionBtn, { backgroundColor: "#fee2e2" }]}
+                          >
+                            <Feather name="x-circle" size={14} color={colors.destructive} />
+                            <Text style={[styles.userActionText, { color: colors.destructive }]}>{t("deny")}</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : null}
+                      <TouchableOpacity
+                        onPress={() => handleDeleteUser(item)}
+                        style={[styles.userActionBtn, styles.dangerActionBtn]}
+                      >
+                        <Feather name="trash-2" size={14} color={colors.destructive} />
+                        <Text style={[styles.userActionText, { color: colors.destructive }]}>{t("delete")}</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               )}
@@ -723,6 +755,9 @@ const styles = StyleSheet.create({
   roleBtnText: { fontSize: 12, fontWeight: "600" },
   userActionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   userActionText: { fontSize: 12, fontWeight: "700" },
+  dangerActionBtn: {
+    backgroundColor: "#fff1f2",
+  },
   accessBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   accessText: { fontSize: 11, fontWeight: "800" },
 });

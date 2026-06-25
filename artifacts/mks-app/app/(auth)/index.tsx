@@ -25,12 +25,10 @@ export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
-  const { signIn, signUp, isFirebaseReady } = useAuth();
+  const { signIn, isFirebaseReady } = useAuth();
 
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -40,18 +38,10 @@ export default function LoginScreen() {
       setError(t("fieldRequired"));
       return;
     }
-    if (mode === "register" && !displayName.trim()) {
-      setError(t("fullNameRequired"));
-      return;
-    }
     setError("");
     setLoading(true);
     try {
-      if (mode === "login") {
-        await signIn(email.trim(), password);
-      } else {
-        await signUp(email.trim(), password, displayName.trim());
-      }
+      await signIn(email.trim(), password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       const msg =
@@ -97,31 +87,11 @@ export default function LoginScreen() {
             {!isFirebaseReady && <SetupBanner />}
 
             <Text style={[styles.cardTitle, { color: colors.foreground }]}>
-              {mode === "login" ? t("welcomeBack") : t("createAccount")}
+              {t("welcomeBack")}
             </Text>
             <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
-              {mode === "login"
-                ? t("signInToAccessDocuments")
-                : t("registerToGetStarted")}
+              {t("signInToAccessDocuments")}
             </Text>
-
-            {mode === "register" && (
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.foreground }]}>{t("fullName")}</Text>
-                <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
-                  <Feather name="user" size={16} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.foreground }]}
-                    placeholder={t("yourFullName")}
-                    placeholderTextColor={colors.mutedForeground}
-                    value={displayName}
-                    onChangeText={setDisplayName}
-                    autoCapitalize="words"
-                    returnKeyType="next"
-                  />
-                </View>
-              </View>
-            )}
 
             <View style={styles.fieldGroup}>
               <Text style={[styles.label, { color: colors.foreground }]}>{t("emailAddress")}</Text>
@@ -177,26 +147,8 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.submitText}>
-                  {mode === "login" ? t("signIn") : t("createAccount")}
-                </Text>
+                <Text style={styles.submitText}>{t("signIn")}</Text>
               )}
-            </TouchableOpacity>
-
-            <View style={[styles.divider, { borderColor: colors.border }]}>
-              <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.divText, { color: colors.mutedForeground }]}>OR</Text>
-              <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-            </View>
-
-            <TouchableOpacity
-              onPress={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
-              style={[styles.toggleBtn, { borderColor: colors.border }]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.toggleText, { color: colors.primary }]}>
-                {mode === "login" ? t("createNewAccount") : t("alreadyHaveAccountSignIn")}
-              </Text>
             </TouchableOpacity>
           </View>
 
@@ -288,29 +240,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.3,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  divLine: {
-    flex: 1,
-    height: 1,
-  },
-  divText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  toggleBtn: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
-  toggleText: {
-    fontSize: 14,
-    fontWeight: "600",
   },
   footer: {
     color: "rgba(255,255,255,0.4)",
