@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -122,9 +123,13 @@ export default function DashboardScreen() {
           <MKSLogo size={isCompact ? "small" : "small"} variant={isCompact ? "icon" : "full"} light />
           <TouchableOpacity onPress={() => router.push("/(tabs)/profile")} style={styles.avatarBtn}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitial}>
-                {user?.displayName?.charAt(0)?.toUpperCase() ?? "U"}
-              </Text>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarInitial}>
+                  {user?.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                </Text>
+              )}
             </View>
           </TouchableOpacity>
         </View>
@@ -245,7 +250,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.35)",
+    overflow: "hidden",
   },
+  avatarImage: { width: "100%", height: "100%" },
   avatarInitial: { color: "#fff", fontSize: 15, fontWeight: "700" },
   greeting: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   greetingCompact: { fontSize: 11, lineHeight: 14 },
