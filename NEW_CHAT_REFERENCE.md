@@ -9,6 +9,8 @@ This file is a short handoff for the next chat.
 - The Google Sheet mapping source is in place and currently contains the main `MAP-001` row for the G12 certificate root folder.
 - The latest successful web deploy is live on Firebase Hosting.
 - The overall project handoff has also been updated in `PROJECT_HANDOFF.md`.
+- The mobile dashboard/profile avatar polish has been completed for cleaner small-screen presentation.
+- The `Create Template` screen now supports importing an Excel workbook to prefill template name/description/fields.
 
 ## Current Drive backend values
 
@@ -32,9 +34,8 @@ This file is a short handoff for the next chat.
 
 ## Important note for the next chat
 
-- Do **not** start the Excel upload to create template flow yet.
-- That work should only begin when the user explicitly says: **“Excel upload to Create Template”**.
-- If the user wants a small follow-up first, the next safe task is to polish the `Profile` page and `Dashboard` avatar style for mobile so the picture feels a little larger and cleaner.
+- The Excel upload to Create Template flow is now in progress and should be treated as the active follow-up.
+- If more workbook tuning is needed later, the next safe step is to refine the field inference rules in `artifacts/mks-app/lib/templateWorkbook.ts`.
 
 ## Suggested opening for the next chat
 
@@ -51,6 +52,7 @@ This file is a short handoff for the next chat.
 
 - `artifacts/mks-app/lib/apiBase.ts`
 - `artifacts/mks-app/lib/driveUpload.ts`
+- `artifacts/mks-app/lib/templateWorkbook.ts`
 - `scripts/deploy-web.cjs`
 - `.env.example`
 - `DEPLOYMENT.md`

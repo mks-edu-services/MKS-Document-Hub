@@ -22,6 +22,10 @@ export type TemplateWorkbookImportSummary = {
   ambiguous: number;
 };
 
+export type TemplateWorkbookFieldDraft = Pick<TemplateField, "label" | "type" | "required" | "placeholder" | "options"> & {
+  id: string;
+};
+
 type WorkbookColumn = {
   key: string;
   header: string;
@@ -98,6 +102,13 @@ function normalizeText(value: unknown): string {
 
 function normalizeKey(value: unknown): string {
   return normalizeText(value).replace(/\s+/g, " ").toLowerCase();
+}
+
+function splitList(raw: string): string[] {
+  return raw
+    .split(/[,|]/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function getFieldLabel(field: TemplateField): string {
@@ -360,6 +371,94 @@ export function parseTemplateWorkbookRows(workbookBuffer: ArrayBuffer, template:
     result.push(entry);
     return result;
   }, []);
+}
+
+export function parseTemplateWorkbookFields(
+  workbookBuffer: ArrayBuffer,
+): { name?: string; description?: string; fields: TemplateWorkbookFieldDraft[]; sourceSheet?: string } {
+  const workbook = XLSX.read(workbookBuffer, { type: "array" });
+  const preferredSheet =
+    workbook.SheetNames.find((name) => /field guide|guide/i.test(name)) ??
+    workbook.SheetNames.find((name) => /template/i.test(name)) ??
+    workbook.SheetNames[0];
+  const sheet = workbook.Sheets[preferredSheet];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+
+  const headerRowIndex = rows.findIndex((row) => {
+    const normalized = row.map((cell) => normalizeKey(cell));
+    return normalized.includes("field_id") || (normalized.includes("label") && normalized.includes("type"));
+  });
+
+  const resolvedHeaderIndex = headerRowIndex >= 0 ? headerRowIndex : 0;
+  const headers = (rows[resolvedHeaderIndex] ?? []).map((cell) => normalizeKey(cell));
+  const normalizedHeaders = headers.map((header) => header.replace(/[^a-z0-9]+/g, "_"));
+
+  const labelIndex =
+    normalizedHeaders.findIndex((header) => /^(label|field_label|name)$/i.test(header)) >= 0
+      ? normalizedHeaders.findIndex((header) => /^(label|field_label|name)$/i.test(header))
+      : -1;
+  const typeIndex =
+    normalizedHeaders.findIndex((header) => /^(type|field_type)$/i.test(header)) >= 0
+      ? normalizedHeaders.findIndex((header) => /^(type|field_type)$/i.test(header))
+      : -1;
+  const requiredIndex =
+    normalizedHeaders.findIndex((header) => /^(required|is_required)$/i.test(header)) >= 0
+      ? normalizedHeaders.findIndex((header) => /^(required|is_required)$/i.test(header))
+      : -1;
+  const placeholderIndex =
+    normalizedHeaders.findIndex((header) => /^(placeholder|hint|notes?)$/i.test(header)) >= 0
+      ? normalizedHeaders.findIndex((header) => /^(placeholder|hint|notes?)$/i.test(header))
+      : -1;
+  const optionsIndex =
+    normalizedHeaders.findIndex((header) => /^(options|choices|values)$/i.test(header)) >= 0
+      ? normalizedHeaders.findIndex((header) => /^(options|choices|values)$/i.test(header))
+      : -1;
+
+  const fields: TemplateWorkbookFieldDraft[] = [];
+  for (const row of rows.slice(resolvedHeaderIndex + 1)) {
+    const label = normalizeText(labelIndex >= 0 ? row[labelIndex] : row[0]);
+    if (!label) continue;
+    const typeRaw = normalizeKey(typeIndex >= 0 ? row[typeIndex] : "");
+    const rawType = typeRaw.replace(/[^a-z]/g, "");
+    const type =
+      rawType === "textarea" || rawType === "longtext" ? "textarea" :
+      rawType === "date" ? "date" :
+      rawType === "number" ? "number" :
+      rawType === "select" || rawType === "dropdown" || rawType === "choice" ? "select" :
+      rawType === "email" ? "email" :
+      rawType === "phone" || rawType === "tel" ? "phone" :
+      "text";
+    const requiredValue = normalizeKey(requiredIndex >= 0 ? row[requiredIndex] : "");
+    const placeholder = normalizeText(placeholderIndex >= 0 ? row[placeholderIndex] : "");
+    const options = splitList(normalizeText(optionsIndex >= 0 ? row[optionsIndex] : ""));
+    fields.push({
+      id: `field_${fields.length + 1}`,
+      label,
+      type,
+      required: /^(1|true|yes|y|required)$/i.test(requiredValue),
+      placeholder: placeholder || undefined,
+      options: options.length > 0 ? options : undefined,
+    });
+  }
+
+  const nameCandidates = [
+    rows[0]?.[0],
+    rows[1]?.[0],
+    rows[0]?.[1],
+    rows[1]?.[1],
+  ]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+  const description = rows[1]?.[0] && normalizeText(rows[1]?.[0]).toLowerCase().includes("rows exported")
+    ? normalizeText(rows[1]?.[0])
+    : undefined;
+
+  return {
+    name: nameCandidates[0] || undefined,
+    description,
+    fields,
+    sourceSheet: preferredSheet,
+  };
 }
 
 export function buildTemplateWorkbookDownloadName(template: Template, suffix: string) {

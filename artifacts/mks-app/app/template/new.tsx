@@ -21,6 +21,7 @@ import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { createTemplate } from "@/lib/firestore";
+import { parseTemplateWorkbookFields } from "@/lib/templateWorkbook";
 import { getServiceTypeLabelFromValue, sortServiceTypes } from "@/lib/serviceTypes";
 import { FieldType, Template, TemplateField } from "@/types";
 
@@ -66,6 +67,7 @@ export default function NewTemplateScreen() {
   const [description, setDescription] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
 
   useEffect(() => {
     if (serviceType) return;
@@ -91,6 +93,49 @@ export default function NewTemplateScreen() {
 
   function removeField(id: string) {
     setFields((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function applyImportedFields(imported: { name?: string; description?: string; fields: TemplateField[] }) {
+    if (imported.name && !name.trim()) setName(imported.name);
+    if (imported.description && !description.trim()) setDescription(imported.description);
+    if (imported.fields.length > 0) setFields(imported.fields);
+  }
+
+  function openImportPicker() {
+    if (Platform.OS !== "web") {
+      Alert.alert("Error", "Excel import is supported on web/desktop only for now.");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx,.xls";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setImportingWorkbook(true);
+      try {
+        const buffer = await file.arrayBuffer();
+        const imported = parseTemplateWorkbookFields(buffer);
+        applyImportedFields({
+          name: imported.name?.replace(/\s*(Workbook|Template)\s*$/i, "").trim() || imported.name,
+          description: imported.description,
+          fields: imported.fields.map((field) => ({
+            id: field.id,
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            placeholder: field.placeholder,
+            options: field.options ?? [],
+          })),
+        });
+        Alert.alert("Imported", `Workbook ထဲက field ${imported.fields.length} ခုကို template editor ထဲသို့ယူပြီးပါပြီ။`);
+      } catch (error: any) {
+        Alert.alert("Error", error?.message ?? "Excel workbook ကိုမဖတ်နိုင်ပါ။");
+      } finally {
+        setImportingWorkbook(false);
+      }
+    };
+    input.click();
   }
 
   function moveField(id: string, dir: "up" | "down") {
@@ -140,6 +185,19 @@ export default function NewTemplateScreen() {
       >
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t("templateInfo")}</Text>
+          <TouchableOpacity
+            onPress={openImportPicker}
+            disabled={importingWorkbook}
+            style={[styles.importBtn, { backgroundColor: colors.navyLight, borderColor: colors.border }]}
+            activeOpacity={0.85}
+          >
+            {importingWorkbook ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather name="upload" size={16} color={colors.primary} />
+            )}
+            <Text style={[styles.importBtnText, { color: colors.primary }]}>Excel မှ Import လုပ်မယ်</Text>
+          </TouchableOpacity>
           <View style={[styles.tipBox, { backgroundColor: colors.tealLight, borderColor: colors.border }]}>
             <Feather name="info" size={16} color={colors.accent} />
             <View style={styles.tipTextWrap}>
@@ -320,6 +378,17 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
   section: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 14 },
   sectionTitle: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  importBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  importBtnText: { fontSize: 14, fontWeight: "700" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   fieldGroup: { gap: 6 },
   label: { fontSize: 13, fontWeight: "600" },

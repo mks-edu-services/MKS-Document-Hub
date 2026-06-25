@@ -1,6 +1,6 @@
 # MKS Document Hub — Reusable Handoff
 
-Last updated: 2026-06-11
+Last updated: 2026-06-26
 
 This document captures the current state of the project so it can be resumed in a new chat, a different IDE, or a fresh environment without losing the important context.
 
@@ -59,6 +59,14 @@ MKS Document Hub is a document-management app for MKS Education Service. It is d
 - Search supports service type, status, sorting, school, agent, date range, and other tracking filters
 - Filters renumber visible results sequentially after filtering or sorting
 - The report button exports the current filtered set as `.xlsx`
+
+### 4.4 Template Creation
+
+- `Create Template` now supports two paths:
+  - manual field-by-field template authoring
+  - Excel workbook import to prefill name, description, and field definitions
+- The workbook import is meant to speed up template setup from an existing spreadsheet
+- The edit-template screen also retains workbook actions for blank template export, records export, and workbook import/update
 
 ### 4.4 Registry Records
 
@@ -218,6 +226,8 @@ pnpm run deploy:web
 - Dashboard cards and quick-add areas were compacted to free up space
 - Recent document titles wrap instead of truncating important Burmese text
 - Documents page scroll/layout was adjusted so the list gets more room
+- Profile and dashboard avatars were polished for a larger, cleaner mobile presentation
+- Excel workbook import support was added to `Create Template`
 - Advanced Search filter chips now wrap on wider screens and scroll on smaller screens
 - Report export now generates `.xlsx`
 - Registry views now show the full Excel-style column set, including blank cells
