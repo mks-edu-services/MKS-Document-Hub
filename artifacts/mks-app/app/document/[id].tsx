@@ -31,7 +31,8 @@ import {
   getRegistryDocumentFieldValue,
   isRegistryDocument,
 } from "@/lib/registry";
-import { deleteDocument, getDocument, updateDocument } from "@/lib/firestore";
+import { deleteDocument, getDocument, getTemplate, getTemplates, updateDocument } from "@/lib/firestore";
+import { resolveTemplateForDocument } from "@/lib/templateResolution";
 import {
   buildDriveFullImageUrl,
   buildDriveDownloadUrl,
@@ -45,7 +46,7 @@ import {
   uploadDocumentToDrive,
   type DriveHealthState,
 } from "@/lib/driveUpload";
-import { Document, DocumentStatus } from "@/types";
+import { Document, DocumentStatus, TemplateField } from "@/types";
 
 const statusConfig: Record<
   DocumentStatus,
@@ -115,6 +116,20 @@ function normalizeDocument(document: Document | null): Document | null {
   };
 }
 
+function getSafeRemoteUrl(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("/")) return "";
+  try {
+    const parsed = new URL(trimmed);
+    if (typeof window !== "undefined" && parsed.origin === window.location.origin) {
+      return "";
+    }
+    return trimmed;
+  } catch {
+    return "";
+  }
+}
+
 function InfoRow({
   icon,
   label,
@@ -182,19 +197,36 @@ export default function DocumentDetailScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [templateFields, setTemplateFields] = useState<TemplateField[]>([]);
   const [driveHealth, setDriveHealth] = useState<DriveHealthState | null>(null);
   const [driveLinkDraft, setDriveLinkDraft] = useState("");
   const [savingDriveLink, setSavingDriveLink] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      getDocument(id)
-        .then((doc) => {
-          setDocument(normalizeDocument(doc));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getDocument(id);
+        const normalized = normalizeDocument(doc);
+        if (cancelled) return;
+        setDocument(normalized);
+        try {
+          const allTemplates = await getTemplates(false).catch(() => []);
+          const resolvedTemplate = resolveTemplateForDocument(normalized, allTemplates);
+
+          if (cancelled) return;
+          setTemplateFields(resolvedTemplate?.fields ?? []);
+        } catch {
+          if (!cancelled) setTemplateFields([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -474,7 +506,7 @@ export default function DocumentDetailScreen() {
         ? t("driveFailed")
         : t("drivePending");
   const displaySubtitle = document.fatherName || document.studentName;
-  const registryFields = getRegistryFieldDefinitions();
+  const registryFields = templateFields.length > 0 ? templateFields : getRegistryFieldDefinitions();
   const registryValues = Object.fromEntries(
     registryFields.map((field) => [
       field.id,
@@ -482,37 +514,42 @@ export default function DocumentDetailScreen() {
     ]),
   );
   const showRegistryTable = isRegistryDocument(document);
-  const preferDriveApiPreview = driveHealth?.apiConfigured === true;
   const preferredScanSource =
-    document.scanPreviewUrl ||
-    document.scanFileId ||
     document.scanFileUrl ||
-    document.driveFileId ||
     document.driveFileUrl ||
+    document.scanFileId ||
+    document.driveFileId ||
+    "";
+  const backendScanPreviewUrl = buildDrivePreviewUrl(preferredScanSource);
+  const scanPreviewSource =
+    backendScanPreviewUrl ||
+    getSafeRemoteUrl(document.scanPreviewUrl) ||
     "";
   const scanThumbUrl =
-    document.scanPreviewUrl ||
-    (preferDriveApiPreview ? buildDrivePreviewUrl(preferredScanSource) : "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    buildDriveThumbnailUrl(document.scanPreviewUrl || "") ||
+    scanPreviewSource ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   const scanFullUrl =
     buildDriveFullImageUrl(preferredScanSource) ||
-    (preferDriveApiPreview ? buildDrivePreviewUrl(preferredScanSource) : "") ||
+    buildDriveFullImageUrl(document.scanPreviewUrl || "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    scanPreviewSource ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     scanThumbUrl;
   const scanDownloadUrl =
     buildDriveDownloadUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   const scanPreviewPageUrl =
+    scanPreviewSource ||
     buildDrivePreviewPageUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   function handleOpenPreview() {
     if (!document) return;

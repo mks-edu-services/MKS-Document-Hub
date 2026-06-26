@@ -18,6 +18,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { Feather, MaterialIcons } from "@/components/AppIcons";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { ServiceTypesProvider } from "@/context/ServiceTypesContext";
 import { resolveApiBaseUrl } from "@/lib/apiBase";
 import { setBaseUrl } from "@workspace/api-client-react";
 
@@ -64,6 +65,8 @@ function RootLayoutNav() {
         options={{
           headerShown: true,
           title: "Document Details",
+          headerBackVisible: false,
+          headerLeft: () => null,
           headerStyle: { backgroundColor: "#003366" },
           headerTintColor: "#ffffff",
           headerTitleStyle: { fontWeight: "700" },
@@ -127,12 +130,14 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <LanguageProvider>
-            <AuthProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <GlobalChrome />
-                <RootLayoutNav />
-              </GestureHandlerRootView>
-            </AuthProvider>
+            <ServiceTypesProvider>
+              <AuthProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <GlobalChrome />
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </AuthProvider>
+            </ServiceTypesProvider>
           </LanguageProvider>
         </QueryClientProvider>
       </ErrorBoundary>

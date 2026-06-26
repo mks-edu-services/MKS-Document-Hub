@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,8 +20,10 @@ import { RoleGate } from "@/components/RoleGate";
 import { SetupBanner } from "@/components/SetupBanner";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
+import { getServiceTypeLabelFromValue } from "@/lib/serviceTypes";
 import { Document, Template } from "@/types";
 
 interface StatCard {
@@ -31,13 +34,12 @@ interface StatCard {
   bg: string;
 }
 
-const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
-
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, isFirebaseReady } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { serviceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const { scrollTop } = useLocalSearchParams<{ scrollTop?: string }>();
   const scrollRef = useRef<ScrollView>(null);
@@ -119,11 +121,15 @@ export default function DashboardScreen() {
       >
         <View style={[styles.headerTop, isCompact && styles.headerTopCompact]}>
           <MKSLogo size={isCompact ? "small" : "small"} variant={isCompact ? "icon" : "full"} light />
-          <TouchableOpacity onPress={() => router.push("/(tabs)/profile")} style={styles.avatarBtn}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitial}>
-                {user?.displayName?.charAt(0)?.toUpperCase() ?? "U"}
-              </Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/profile")} style={[styles.avatarBtn, isCompact && styles.avatarBtnCompact]}>
+            <View style={[styles.avatarCircle, isCompact && styles.avatarCircleCompact]}>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+              ) : (
+                <Text style={[styles.avatarInitial, isCompact && styles.avatarInitialCompact]}>
+                  {user?.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                </Text>
+              )}
             </View>
           </TouchableOpacity>
         </View>
@@ -169,7 +175,7 @@ export default function DashboardScreen() {
                     {tmpl.name}
                   </Text>
                   <Text style={[styles.quickSub, isCompact && styles.quickSubCompact, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {tmpl.serviceType}
+                    {getServiceTypeLabelFromValue(language, tmpl.serviceType, serviceTypes)}
                   </Text>
                 </TouchableOpacity>
               ))
@@ -236,16 +242,25 @@ const styles = StyleSheet.create({
   avatarBtn: { padding: 4 },
   avatarBtnCompact: { padding: 2 },
   avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: "rgba(255,255,255,0.45)",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  avatarInitial: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  avatarCircleCompact: { width: 42, height: 42, borderRadius: 21 },
+  avatarImage: { width: "100%", height: "100%" },
+  avatarInitial: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  avatarInitialCompact: { fontSize: 17 },
   greeting: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
   greetingCompact: { fontSize: 11, lineHeight: 14 },
   userName: { color: "#ffffff", fontSize: 24, fontWeight: "800" },

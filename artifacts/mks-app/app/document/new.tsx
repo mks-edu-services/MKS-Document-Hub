@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
 import { DriveStatusBanner } from "@/components/DriveStatusBanner";
 import { RegistryFieldsTable } from "@/components/RegistryFieldsTable";
@@ -26,9 +27,10 @@ import { RoleRouteGate } from "@/components/RoleRouteGate";
 import { getRegistryDisplayTitle, getRegistryFieldDefinitions } from "@/lib/registry";
 import { Document, Template } from "@/types";
 import { getDocument } from "@/lib/firestore";
+import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { resolveTemplateForDocument } from "@/lib/templateResolution";
 
 const ACADEMIC_YEARS = ["2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
-const SERVICE_TYPES = ["Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const FIELD_TYPE_HINTS = {
   text: "Short values like names, IDs, or reference numbers.",
   textarea: "Longer notes, remarks, or multi-line text.",
@@ -143,7 +145,8 @@ export default function NewDocumentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { language, t, formatDate, translateServiceType, translateStatus, localizeFieldLabel, localizePlaceholder } = useLanguage();
+  const { language, t, formatDate, translateStatus, localizeFieldLabel, localizePlaceholder } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
   const params = useLocalSearchParams<{ templateId?: string; id?: string }>();
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -164,7 +167,7 @@ export default function NewDocumentScreen() {
     notes: "",
     driveFileUrl: "",
     templateId: "",
-    serviceType: SERVICE_TYPES[0],
+    serviceType: "",
     fields: {},
   });
 
@@ -179,14 +182,14 @@ export default function NewDocumentScreen() {
       notes: doc.notes ?? "",
       driveFileUrl: doc.driveFileUrl ?? "",
       templateId: doc.templateId ?? "",
-      serviceType: doc.serviceType ?? SERVICE_TYPES[0],
+      serviceType: resolveServiceTypeId(doc.serviceType ?? "", serviceTypes),
       fields: { ...(doc.fields ?? {}) },
     };
   }
 
   useEffect(() => {
     (async () => {
-      const tmps = await getTemplates().catch(() => []);
+      const tmps = await getTemplates(false).catch(() => []);
       setTemplates(tmps);
       if (params.id) {
         const existing = await getDocument(params.id).catch(() => null);
@@ -194,7 +197,7 @@ export default function NewDocumentScreen() {
           setExistingDocument(existing);
           setEditingDocumentId(existing.id);
           setForm(buildFormFromDocument(existing));
-          const existingTemplate = tmps.find((t) => t.id === existing.templateId) ?? null;
+          const existingTemplate = resolveTemplateForDocument(existing, tmps, serviceTypes);
           setSelectedTemplate(existingTemplate);
         }
         setLoadingDocument(false);
@@ -212,12 +215,52 @@ export default function NewDocumentScreen() {
     setSelectedTemplate(matchingTemplate);
   }, [editingDocumentId, form.templateId, templates]);
 
+  useEffect(() => {
+    if (form.serviceType) return;
+    const preferredServiceType =
+      resolveServiceTypeId(selectedTemplate?.serviceType ?? "", serviceTypes) ||
+      activeServiceTypes[0]?.id ||
+      serviceTypes[0]?.id ||
+      "";
+    if (preferredServiceType) {
+      setForm((current) => ({ ...current, serviceType: preferredServiceType }));
+    }
+  }, [activeServiceTypes, selectedTemplate?.serviceType, serviceTypes, form.serviceType]);
+
+  useEffect(() => {
+    if (!form.serviceType || templates.length === 0) return;
+
+    const selectedServiceTypeId = resolveServiceTypeId(form.serviceType, serviceTypes);
+    const matchingTemplates = templates.filter(
+      (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === selectedServiceTypeId,
+    );
+    if (matchingTemplates.length === 0) {
+      if (resolveServiceTypeId(selectedTemplate?.serviceType ?? "", serviceTypes) !== selectedServiceTypeId) {
+        setSelectedTemplate(null);
+        setForm((current) => ({ ...current, templateId: "" }));
+      }
+      return;
+    }
+
+    if (selectedTemplate && matchingTemplates.some((template) => template.id === selectedTemplate.id)) {
+      return;
+    }
+
+    const requestedTemplate = params.templateId
+      ? matchingTemplates.find((template) => template.id === params.templateId)
+      : null;
+    const existingTemplate = editingDocumentId && existingDocument
+      ? resolveTemplateForDocument(existingDocument, matchingTemplates, serviceTypes)
+      : null;
+    applyTemplate(requestedTemplate ?? existingTemplate ?? matchingTemplates[0]);
+  }, [editingDocumentId, existingDocument, form.serviceType, params.templateId, selectedTemplate, serviceTypes, templates]);
+
   function applyTemplate(tmpl: Template) {
     setSelectedTemplate(tmpl);
     setForm((f) => ({
       ...f,
       templateId: tmpl.id,
-      serviceType: tmpl.serviceType,
+      serviceType: resolveServiceTypeId(tmpl.serviceType, serviceTypes),
       title: f.title || tmpl.name,
       fields: Object.fromEntries(tmpl.fields.map((field) => [field.id, f.fields[field.id] ?? ""])),
     }));
@@ -230,6 +273,25 @@ export default function NewDocumentScreen() {
   function setDynamicField(id: string, value: string) {
     setForm((f) => ({ ...f, fields: { ...f.fields, [id]: value } }));
   }
+
+  const visibleServiceTypes = sortServiceTypes(
+    (() => {
+      const currentServiceType = form.serviceType
+        ? serviceTypes.find((serviceType) => serviceType.id === form.serviceType)
+        : null;
+      const combined = [...activeServiceTypes];
+      if (currentServiceType && !combined.some((serviceType) => serviceType.id === currentServiceType.id)) {
+        combined.push(currentServiceType);
+      }
+      return combined;
+    })(),
+  );
+
+  const selectedServiceTypeId = resolveServiceTypeId(form.serviceType, serviceTypes);
+  const selectedServiceTypeLabel = getServiceTypeLabelFromValue(language, selectedServiceTypeId, serviceTypes);
+  const matchingTemplates = templates.filter(
+    (template) => resolveServiceTypeId(template.serviceType, serviceTypes) === selectedServiceTypeId,
+  );
 
   function syncRegistryField(id: string, value: string) {
     setForm((current) => {
@@ -268,8 +330,11 @@ export default function NewDocumentScreen() {
     });
   }
 
-  const registryFieldDefinitions = getRegistryFieldDefinitions();
   const isRegistryTemplate = (selectedTemplate?.id ?? form.templateId) === REGISTRY_TEMPLATE_ID;
+  const registryFieldDefinitions =
+    isRegistryTemplate && selectedTemplate && selectedTemplate.fields.length > 0
+      ? selectedTemplate.fields
+      : getRegistryFieldDefinitions();
 
   async function handleSave(status: "draft" | "active") {
     const effectiveTitle = isRegistryTemplate
@@ -414,6 +479,30 @@ export default function NewDocumentScreen() {
         <DriveStatusBanner />
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t("serviceType")}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
+            {visibleServiceTypes.map((svc) => (
+              <TouchableOpacity
+                key={svc.id}
+                onPress={() => setField("serviceType", svc.id)}
+                style={[
+                  styles.templateChip,
+                  {
+                    backgroundColor: form.serviceType === svc.id ? colors.accent : colors.muted,
+                    borderColor: form.serviceType === svc.id ? colors.accent : colors.border,
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.templateChipText, { color: form.serviceType === svc.id ? "#fff" : colors.foreground }]}>
+                  {getServiceTypeLabelFromValue(language, svc.id, serviceTypes)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t("template")}</Text>
           <View style={[styles.tipBox, { backgroundColor: colors.tealLight, borderColor: colors.border }]}>
             <Feather name="info" size={16} color={colors.accent} />
@@ -426,13 +515,13 @@ export default function NewDocumentScreen() {
           </View>
           {loadingTemplates ? (
             <ActivityIndicator size="small" color={colors.primary} />
-          ) : templates.length === 0 ? (
-              <Text style={[styles.noTemplate, { color: colors.mutedForeground }]}>
-              {t("noTemplatesAvailable")}. {t("createFirstTemplate")}
+          ) : matchingTemplates.length === 0 ? (
+            <Text style={[styles.noTemplate, { color: colors.mutedForeground }]}>
+              {selectedServiceTypeLabel ? `${selectedServiceTypeLabel} ${t("noTemplatesAvailable")}` : t("noTemplatesAvailable")}. {t("createFirstTemplate")}
             </Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
-              {templates.map((tmpl) => (
+              {matchingTemplates.map((tmpl) => (
                 <TouchableOpacity
                   key={tmpl.id}
                   onPress={() => applyTemplate(tmpl)}
@@ -458,7 +547,7 @@ export default function NewDocumentScreen() {
                 {selectedTemplate.name}
               </Text>
               <Text style={[styles.templateSummaryMeta, { color: colors.mutedForeground }]}>
-                {translateServiceType(selectedTemplate.serviceType)} • {selectedTemplate.fields.length} {t("customFields")}
+                {getServiceTypeLabelFromValue(language, selectedTemplate.serviceType, serviceTypes)} • {selectedTemplate.fields.length} {t("customFields")}
               </Text>
               {selectedTemplate.description ? (
                 <Text style={[styles.templateSummaryDesc, { color: colors.mutedForeground }]}>
@@ -467,30 +556,6 @@ export default function NewDocumentScreen() {
               ) : null}
             </View>
           )}
-        </View>
-
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t("serviceType")}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
-            {SERVICE_TYPES.map((svc) => (
-              <TouchableOpacity
-                key={svc}
-                onPress={() => setField("serviceType", svc)}
-                style={[
-                  styles.templateChip,
-                  {
-                    backgroundColor: form.serviceType === svc ? colors.accent : colors.muted,
-                    borderColor: form.serviceType === svc ? colors.accent : colors.border,
-                  },
-                ]}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.templateChipText, { color: form.serviceType === svc ? "#fff" : colors.foreground }]}>
-                  {svc}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         </View>
 
         {!isRegistryTemplate ? (

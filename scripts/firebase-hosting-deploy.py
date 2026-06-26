@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import sys
 from dataclasses import dataclass
 
 
@@ -21,6 +22,14 @@ class FileEntry:
 
 def read_json(path: str):
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+
+
+def log(message: str):
+    try:
+        print(message)
+        sys.stdout.flush()
+    except OSError:
+        pass
 
 
 def transform_hosting_config(firebase_json: dict):
@@ -161,7 +170,7 @@ def main():
     hosting_config = transform_hosting_config(firebase_json)
     access_token = mint_access_token(assertion)
 
-    print("Minted Firebase access token.", flush=True)
+    log("Minted Firebase access token.")
 
     status, version = request_json(
         f"https://firebasehosting.googleapis.com/v1beta1/sites/{site_id}/versions",
@@ -172,7 +181,7 @@ def main():
     )
     if status != 200:
         raise RuntimeError(f"Create version failed: {status} {version}")
-    print(f"Created Firebase Hosting version: {version['name']}", flush=True)
+    log(f"Created Firebase Hosting version: {version['name']}")
 
     files = collect_files(dist_dir)
     file_map = {file.relative: file.sha256 for file in files}
@@ -191,7 +200,7 @@ def main():
 
     required_hashes = set(population.get("uploadRequiredHashes", []))
     upload_url = population["uploadUrl"]
-    print(f"Uploading {len(required_hashes)} file blobs...", flush=True)
+    log(f"Uploading {len(required_hashes)} file blobs...")
     uploaded = 0
     for index, file in enumerate(files, start=1):
         if file.sha256 not in required_hashes:
@@ -199,7 +208,7 @@ def main():
         upload_file(access_token, upload_url, file.sha256, file.gzipped)
         uploaded += 1
         if uploaded % 25 == 0 or uploaded == len(required_hashes):
-            print(f"Uploaded {uploaded}/{len(required_hashes)} file blobs...", flush=True)
+            log(f"Uploaded {uploaded}/{len(required_hashes)} file blobs...")
 
     status, finalized = request_json(
         f"https://firebasehosting.googleapis.com/v1beta1/{version_name}?update_mask=status",
@@ -210,7 +219,7 @@ def main():
     )
     if status != 200:
         raise RuntimeError(f"Finalize version failed: {status} {finalized}")
-    print("Finalized Firebase Hosting version.", flush=True)
+    log("Finalized Firebase Hosting version.")
 
     status, release = request_json(
         f"https://firebasehosting.googleapis.com/v1beta1/sites/{site_id}/releases?versionName={urllib.parse.quote(version_name, safe='')}",
@@ -222,8 +231,8 @@ def main():
     if status != 200:
         raise RuntimeError(f"Create release failed: {status} {release}")
 
-    print(f"Deployed release: {release['name']}", flush=True)
-    print(f"Live site: https://{site_id}.web.app", flush=True)
+    log(f"Deployed release: {release['name']}")
+    log(f"Live site: https://{site_id}.web.app")
 
 
 if __name__ == "__main__":

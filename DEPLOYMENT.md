@@ -19,6 +19,12 @@ To pin the web build to a specific backend host, pass:
 pnpm run deploy:web -- --api-base=https://your-api-host/api
 ```
 
+Drive features can also be pinned separately with:
+
+```bash
+pnpm run deploy:web -- --drive-api-base=https://script.google.com/macros/s/your-script-id/exec
+```
+
 The deploy script expects one Firebase auth method:
 
 - `GOOGLE_APPLICATION_CREDENTIALS_JSON` — recommended for reliable non-interactive deploys
@@ -34,6 +40,10 @@ Deploy `artifacts/api-server` to any Node host you control, or build the provide
 If you are working from this desktop and want the browser to talk to the local API server instead, use:
 
 - `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api`
+
+The Drive preview/import/export helper now defaults to the Apps Script backend you deployed, so you only need to override it if you move that script to a different URL:
+
+- `EXPO_PUBLIC_DRIVE_API_BASE_URL=https://script.google.com/macros/s/your-script-id/exec`
 
 The current workspace also installs a user-level startup entry that launches `scripts/start-local-api.ps1` so the API comes back after logon.
 
@@ -81,6 +91,7 @@ The older Replit connector path still works as a fallback, but it is optional no
 - `REPLIT_CONNECTORS_HOSTNAME` (optional fallback)
 - `REPL_IDENTITY` (optional fallback)
 - `WEB_REPL_RENEWAL` (optional fallback)
+- `EXPO_PUBLIC_DRIVE_API_BASE_URL` (optional override for the Drive helper)
 
 ## 4) Quick sanity check
 

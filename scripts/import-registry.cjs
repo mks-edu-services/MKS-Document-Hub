@@ -11,6 +11,10 @@ const defaultServiceAccountPath = path.join(
 );
 const projectId = process.env.FIREBASE_PROJECT_ID || "mks-certificate-app-cbf64";
 const workbookPath = process.env.REGISTRY_WORKBOOK_PATH || defaultWorkbookPath;
+const workbookPaths = (process.env.REGISTRY_WORKBOOK_PATHS || "")
+  .split(/[,;]+/)
+  .map((value) => value.trim())
+  .filter(Boolean);
 const serviceAccountPath =
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
   process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
@@ -43,7 +47,7 @@ const FIELD_DEFS = REGISTRY_PROFILE.columns;
 const args = parseArgs(process.argv.slice(2));
 
 function parseArgs(argv) {
-  const parsed = { dryRun: false, limit: null, resetTemplates: false };
+  const parsed = { dryRun: false, limit: null, resetTemplates: false, workbookPaths: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--dry-run") {
@@ -61,6 +65,15 @@ function parseArgs(argv) {
     if (arg === "--limit") {
       parsed.limit = Number(argv[index + 1]);
       index += 1;
+      continue;
+    }
+    if (arg.startsWith("--workbook=")) {
+      parsed.workbookPaths.push(arg.split("=", 2)[1]);
+      continue;
+    }
+    if (arg === "--workbook") {
+      parsed.workbookPaths.push(argv[index + 1]);
+      index += 1;
     }
   }
   return parsed;
@@ -76,6 +89,51 @@ function normalizeText(value) {
 function toFieldValue(value) {
   const text = normalizeText(value);
   return text;
+}
+
+function extractDriveFileId(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/document\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i,
+    /\/presentation\/d\/([a-zA-Z0-9_-]+)/i,
+    /[?&]id=([a-zA-Z0-9_-]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(input) && !input.includes(" ")) {
+    return input;
+  }
+
+  return "";
+}
+
+function normalizeDriveLink(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+  const fileId = extractDriveFileId(input);
+  if (!fileId) return input;
+  return input.includes("drive.google.com") ? input : `https://drive.google.com/open?id=${fileId}`;
+}
+
+function buildDrivePreviewPageUrl(value) {
+  const fileId = extractDriveFileId(value);
+  if (!fileId) return "";
+  return `https://drive.google.com/file/d/${fileId}/preview`;
+}
+
+function getFileNameFromPath(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+  const parts = input.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || "";
 }
 
 function buildHeaderValueMap(headers, values) {
@@ -118,6 +176,28 @@ function encodeFirestoreValue(value) {
   }
 }
 
+function decodeFirestoreValue(value) {
+  if (!value || typeof value !== "object") return null;
+  if ("stringValue" in value) return value.stringValue ?? "";
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return Number(value.doubleValue);
+  if ("booleanValue" in value) return Boolean(value.booleanValue);
+  if ("nullValue" in value) return null;
+  if ("timestampValue" in value) return value.timestampValue ?? "";
+  if ("arrayValue" in value) {
+    return (value.arrayValue?.values ?? []).map((entry) => decodeFirestoreValue(entry));
+  }
+  if ("mapValue" in value) {
+    const result = {};
+    const fields = value.mapValue?.fields ?? {};
+    for (const [key, nested] of Object.entries(fields)) {
+      result[key] = decodeFirestoreValue(nested);
+    }
+    return result;
+  }
+  return null;
+}
+
 function buildDocumentName(collectionId, docId) {
   return `projects/${projectId}/databases/(default)/documents/${collectionId}/${docId}`;
 }
@@ -139,7 +219,7 @@ function buildWrite(collectionId, docId, data) {
   };
 }
 
-function buildTemplateRecord(nowIso) {
+function buildTemplateRecord(nowIso, sourcePaths) {
   return {
     id: REGISTRY_PROFILE.templateId,
     name: REGISTRY_PROFILE.templateNameMy,
@@ -150,8 +230,8 @@ function buildTemplateRecord(nowIso) {
     descriptionEn: "Template imported from the 2025 Excel registry",
     registryKind: "university-certificate",
     registrySchema: {
-      sourceWorkbook: path.basename(workbookPath),
-      sourceSheet: "2025 အောင်လက်မှတ်",
+      sourceWorkbook: sourcePaths.map((item) => path.basename(item)).join(", "),
+      sourceSheet: sourcePaths.map((item) => path.basename(item)).join(", "),
       combinedSeatFields: ["seatPrefix", "certificateNo"],
       searchableFields: ["index", "seatPrefix", "certificateNo", "year", "name", "fatherName", "township", "submittedBy", "issuedBy"],
       columns: FIELD_DEFS.map((field) => ({
@@ -194,8 +274,14 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
   const returnedDate = toFieldValue(valuesByHeader.get("ပြန်ပို့ ရက်စွဲ"));
   const issuedBy = toFieldValue(valuesByHeader.get("ထုတ်ပေးသူ"));
   const notes = toFieldValue(valuesByHeader.get("မှတ်ချက်"));
+  const googleLink = toFieldValue(valuesByHeader.get("Google Link"));
+  const localLink = toFieldValue(valuesByHeader.get("Local Link"));
   const indexValue = rawIndex || String(rowIndex);
   const seatNo = [seatPrefix, certificateNo].filter(Boolean).join(" ").trim();
+  const driveFileId = extractDriveFileId(googleLink);
+  const fileName = getFileNameFromPath(localLink) || `${seatNo || indexValue}.jpg`;
+  const normalizedGoogleLink = normalizeDriveLink(googleLink);
+  const previewPageUrl = buildDrivePreviewPageUrl(googleLink);
 
   const fields = {};
   for (const field of FIELD_DEFS) {
@@ -233,9 +319,14 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
       createdAt: nowIso,
       updatedAt: nowIso,
       scanSearchKey,
-      scanFileName: "",
-      scanFileUrl: "",
-      scanPreviewUrl: "",
+      driveFileId: driveFileId || undefined,
+      driveFileName: fileName || undefined,
+      driveFileUrl: normalizedGoogleLink || undefined,
+      driveFolderPath: localLink ? path.dirname(localLink) : undefined,
+      scanFileId: driveFileId || undefined,
+      scanFileName: fileName || undefined,
+      scanFileUrl: normalizedGoogleLink || undefined,
+      scanPreviewUrl: previewPageUrl || undefined,
       driveSyncError: "",
       driveSyncedAt: "",
       // Preserve a few workbook-specific fields at the top level for quick lookup.
@@ -245,11 +336,12 @@ function buildRegistryDocument(headers, row, rowIndex, nowIso) {
       returnedDate,
       issuedBy,
       notes,
+      localLink: localLink || undefined,
     },
   };
 }
 
-function parseWorkbook() {
+function parseWorkbook(workbookPathToRead) {
   const pythonScript = `
 import json
 from datetime import date, datetime
@@ -287,7 +379,7 @@ print(json.dumps({
 
   const result = spawnSync(
     process.env.PYTHON || "python",
-    ["-c", pythonScript, workbookPath],
+    ["-c", pythonScript, workbookPathToRead],
     { encoding: "utf8", maxBuffer: 1024 * 1024 * 16 },
   );
 
@@ -296,6 +388,97 @@ print(json.dumps({
   }
 
   return JSON.parse(result.stdout);
+}
+
+function normalizeKey(value) {
+  return normalizeText(value).replace(/\s+/g, " ").toLowerCase();
+}
+
+function buildRegistryKey(data) {
+  const indexValue = normalizeKey(data.index);
+  const seatPrefix = normalizeKey(data.seatPrefix || data.seat);
+  const certificateNo = normalizeKey(data.certificateNo || data.certificate);
+  const seatNo = normalizeKey(data.seatNo || data.seatNumber || [data.seatPrefix, data.certificateNo].filter(Boolean).join(" "));
+  const studentName = normalizeKey(data.studentName || data.name);
+  const academicYear = normalizeKey(data.academicYear || data.year);
+  const driveFileId = normalizeKey(data.driveFileId || extractDriveFileId(data.driveFileUrl) || extractDriveFileId(data.scanFileUrl));
+  return [
+    driveFileId ? `drive:${driveFileId}` : "",
+    indexValue && seatNo && studentName ? `idx:${indexValue}|${seatNo}|${studentName}|${academicYear}` : "",
+    seatNo && studentName ? `seat:${seatNo}|${studentName}|${academicYear}` : "",
+    seatPrefix && certificateNo && studentName ? `prefix:${seatPrefix}|${certificateNo}|${studentName}|${academicYear}` : "",
+    seatNo && studentName ? `seatname:${seatNo}|${studentName}` : "",
+  ].filter(Boolean);
+}
+
+function mergeRecord(existing, incoming) {
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value === undefined || value === null || value === "") continue;
+    if (key === "fields" && value && typeof value === "object" && !Array.isArray(value)) {
+      merged.fields = { ...(existing.fields ?? {}) };
+      for (const [fieldKey, fieldValue] of Object.entries(value)) {
+        if (fieldValue === undefined || fieldValue === null || fieldValue === "") continue;
+        merged.fields[fieldKey] = fieldValue;
+      }
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+}
+
+function indexPreparedDocument(docsById, docsByKey, doc) {
+  const identifiers = new Set([
+    doc.id,
+    doc.driveFileId,
+    doc.scanFileId,
+    extractDriveFileId(doc.driveFileUrl),
+    extractDriveFileId(doc.scanFileUrl),
+  ].filter(Boolean).map(normalizeKey));
+
+  for (const identifier of identifiers) {
+    docsById.set(identifier, [doc]);
+  }
+
+  for (const key of buildRegistryKey(doc)) {
+    const existing = docsByKey.get(key) || [];
+    const next = existing.filter((entry) => normalizeKey(entry.id) !== normalizeKey(doc.id));
+    next.push(doc);
+    docsByKey.set(key, next);
+  }
+}
+
+async function fetchCollectionDocuments(accessToken, collectionId) {
+  const documents = [];
+  let pageToken = "";
+
+  do {
+    const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}`);
+    url.searchParams.set("pageSize", "300");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to list ${collectionId}: ${response.status} ${await response.text()}`);
+    }
+
+    const payload = await response.json();
+    for (const doc of payload.documents ?? []) {
+      const id = doc.name.split("/").pop();
+      const fields = {};
+      for (const [key, value] of Object.entries(doc.fields ?? {})) {
+        fields[key] = decodeFirestoreValue(value);
+      }
+      documents.push({ id, ...fields });
+    }
+    pageToken = payload.nextPageToken || "";
+  } while (pageToken);
+
+  return documents;
 }
 
 function base64Url(input) {
@@ -366,37 +549,134 @@ async function loadServiceAccount() {
 }
 
 async function main() {
-  const workbook = parseWorkbook();
   const nowIso = new Date().toISOString();
   const serviceAccount = await loadServiceAccount();
-  const template = buildTemplateRecord(nowIso);
+  const accessToken = await getAccessToken(serviceAccount);
+  const sourcePaths = [
+    ...new Set([
+      ...args.workbookPaths,
+      ...workbookPaths,
+    ].filter(Boolean)),
+  ];
+  if (sourcePaths.length === 0) {
+    sourcePaths.push(workbookPath);
+  }
+  const template = buildTemplateRecord(nowIso, sourcePaths);
+  const existingDocs = await fetchCollectionDocuments(accessToken, "documents");
+  const docsById = new Map();
+  const docsByKey = new Map();
+  for (const doc of existingDocs) {
+    const identifiers = new Set([
+      doc.id,
+      doc.driveFileId,
+      doc.scanFileId,
+      extractDriveFileId(doc.driveFileUrl),
+      extractDriveFileId(doc.scanFileUrl),
+    ].filter(Boolean).map(normalizeKey));
+    for (const identifier of identifiers) {
+      const list = docsById.get(identifier) || [];
+      list.push(doc);
+      docsById.set(identifier, list);
+    }
+    for (const key of buildRegistryKey(doc)) {
+      const list = docsByKey.get(key) || [];
+      list.push(doc);
+      docsByKey.set(key, list);
+    }
+  }
 
-  const records = workbook.rows.map((row, index) => buildRegistryDocument(workbook.headers, { values: row }, index + 1, nowIso));
-  const limitedRecords = args.limit ? records.slice(0, args.limit) : records;
+  const prepared = [];
+  for (const sourcePath of sourcePaths) {
+    const workbook = parseWorkbook(sourcePath);
+    const records = workbook.rows
+      .map((row, index) => buildRegistryDocument(workbook.headers, { values: row }, index + 1, nowIso))
+      .filter((record) => record.data.driveFileId || record.data.driveFileUrl);
+    console.log(`Workbook: ${path.basename(sourcePath)}`);
+    console.log(`Sheet: ${workbook.sheetName}`);
+    console.log(`Parsed registry rows: ${workbook.rows.length}`);
+    console.log(`Eligible rows with Drive link: ${records.length}`);
+    prepared.push(...records.map((record) => ({ ...record, sourcePath })));
+  }
 
-  console.log(`Workbook: ${path.basename(workbookPath)}`);
-  console.log(`Sheet: ${workbook.sheetName}`);
-  console.log(`Parsed registry rows: ${records.length}`);
+  const limitedRecords = args.limit ? prepared.slice(0, args.limit) : prepared;
   console.log(`Template ID: ${REGISTRY_PROFILE.templateId}`);
+  console.log(`Total eligible records: ${prepared.length}`);
+
+  const operations = [];
+  for (const record of limitedRecords) {
+    const keyCandidates = buildRegistryKey(record.data);
+    let match = null;
+
+    if (record.data.driveFileId && docsById.has(normalizeKey(record.data.driveFileId))) {
+      const matches = docsById.get(normalizeKey(record.data.driveFileId)) || [];
+      if (matches.length === 1) {
+        match = matches[0];
+      } else if (matches.length > 1) {
+        match = matches
+          .map((doc) => {
+            const score = [
+              normalizeKey(doc.index) && normalizeKey(doc.index) === normalizeKey(record.data.index) ? 4 : 0,
+              normalizeKey(doc.seatNo) && normalizeKey(doc.seatNo) === normalizeKey([record.data.seatPrefix, record.data.certificateNo].filter(Boolean).join(" ")) ? 4 : 0,
+              normalizeKey(doc.studentName) && normalizeKey(doc.studentName) === normalizeKey(record.data.studentName) ? 4 : 0,
+              normalizeKey(doc.academicYear) && normalizeKey(doc.academicYear) === normalizeKey(record.data.academicYear) ? 2 : 0,
+            ].reduce((sum, value) => sum + value, 0);
+            return { doc, score };
+          })
+          .sort((left, right) => right.score - left.score)[0]?.doc || null;
+      }
+    } else {
+      for (const key of keyCandidates) {
+        const matches = docsByKey.get(key) || [];
+        if (matches.length === 1) {
+          match = matches[0];
+          break;
+        }
+        if (matches.length > 1) {
+          const scored = matches
+            .map((doc) => {
+              const score = [
+                normalizeKey(doc.index) && normalizeKey(doc.index) === normalizeKey(record.data.index) ? 4 : 0,
+                normalizeKey(doc.seatNo) && normalizeKey(doc.seatNo) === normalizeKey([record.data.seatPrefix, record.data.certificateNo].filter(Boolean).join(" ")) ? 4 : 0,
+                normalizeKey(doc.studentName) && normalizeKey(doc.studentName) === normalizeKey(record.data.studentName) ? 4 : 0,
+                normalizeKey(doc.academicYear) && normalizeKey(doc.academicYear) === normalizeKey(record.data.academicYear) ? 2 : 0,
+                normalizeKey(doc.driveFileId) && normalizeKey(doc.driveFileId) === normalizeKey(record.data.driveFileId) ? 8 : 0,
+              ].reduce((sum, value) => sum + value, 0);
+              return { doc, score };
+            })
+            .sort((left, right) => right.score - left.score);
+          match = scored[0]?.doc || null;
+          break;
+        }
+      }
+    }
+
+    const targetDocId = match?.id || (record.data.driveFileId ? `registry-2025-${record.data.driveFileId}` : record.docId);
+    const payload = match ? mergeRecord(match, record.data) : record.data;
+    const preparedDoc = { id: targetDocId, ...payload };
+    indexPreparedDocument(docsById, docsByKey, preparedDoc);
+    operations.push({ docId: targetDocId, payload, sourcePath: record.sourcePath, matched: Boolean(match) });
+  }
+
+  console.log(`Matched existing docs: ${operations.filter((item) => item.matched).length}`);
+  console.log(`New docs to create: ${operations.filter((item) => !item.matched).length}`);
 
   if (args.dryRun) {
     console.log("Dry run preview:");
     console.log(JSON.stringify({
       template,
-      firstRecord: limitedRecords[0],
-      count: limitedRecords.length,
+      firstOperation: operations[0] || null,
+      count: operations.length,
     }, null, 2));
     return;
   }
 
-  const accessToken = await getAccessToken(serviceAccount);
   const batchSize = 100;
   const batches = [];
-  for (let index = 0; index < limitedRecords.length; index += batchSize) {
-    batches.push(limitedRecords.slice(index, index + batchSize));
+  for (let index = 0; index < operations.length; index += batchSize) {
+    batches.push(operations.slice(index, index + batchSize));
   }
 
-  console.log(`Importing ${limitedRecords.length} records in ${batches.length} batches...`);
+  console.log(`Importing ${operations.length} records in ${batches.length} batches...`);
 
   await commitWrites(accessToken, [
     buildWrite("templates", REGISTRY_PROFILE.templateId, template),
@@ -404,7 +684,7 @@ async function main() {
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
     const batch = batches[batchIndex];
-    const writes = batch.map((record) => buildWrite("documents", record.docId, record.data));
+    const writes = batch.map((record) => buildWrite("documents", record.docId, record.payload));
     await commitWrites(accessToken, writes);
     console.log(`Committed batch ${batchIndex + 1}/${batches.length} (${batch.length} docs)`);
   }

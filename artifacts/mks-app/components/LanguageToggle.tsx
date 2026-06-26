@@ -18,13 +18,13 @@ export function LanguageToggle({ compact = false }: { compact?: boolean }) {
         style={[
           styles.button,
           {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
+            backgroundColor: "rgba(255,255,255,0.84)",
+            borderColor: "rgba(255,255,255,0.42)",
           },
           compact && {
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            minWidth: 86,
+            paddingHorizontal: 11,
+            paddingVertical: 7,
+            minWidth: 74,
           },
         ]}
         activeOpacity={0.85}
@@ -55,13 +55,13 @@ const styles = StyleSheet.create({
   button: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
   note: {

@@ -109,8 +109,8 @@ export function getRegistryFieldLabel(
 ) {
   if (templateField) {
     return language === "en"
-      ? templateField.labelEn || templateField.labelMy || templateField.label
-      : templateField.labelMy || templateField.label || templateField.labelEn || templateField.label;
+      ? templateField.label || templateField.labelEn || templateField.labelMy
+      : templateField.label || templateField.labelMy || templateField.labelEn;
   }
 
   const fallback = REGISTRY_LABELS[fieldId];

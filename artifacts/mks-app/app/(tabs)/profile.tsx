@@ -1,4 +1,5 @@
 import { Feather } from "@/components/AppIcons";
+import { PasswordField } from "@/components/PasswordField";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
@@ -15,6 +16,7 @@ import {
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
@@ -25,7 +27,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
-  const { user, signOut, updateProfile, deleteCurrentAccount, isFirebaseReady } = useAuth();
+  const { user, signOut, updateProfile, deleteCurrentAccount, changePassword, isFirebaseReady } = useAuth();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [editingName, setEditingName] = useState(false);
@@ -36,7 +38,11 @@ export default function ProfileScreen() {
   const [username, setUsername] = useState(user?.username ?? "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
   const [agentName, setAgentName] = useState(user?.agentName ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
 
   const [myDocs, setMyDocs] = useState<Document[]>([]);
@@ -101,6 +107,30 @@ export default function ProfileScreen() {
     setSaving(false);
   }
 
+  async function handleChangePassword() {
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert(t("error"), t("fieldRequired"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t("error"), t("passwordMismatch"));
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      Alert.alert(t("changePassword"), t("passwordUpdated"));
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? t("failedToUpdatePassword"));
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   async function handlePickPhoto() {
     if (!user) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -134,10 +164,28 @@ export default function ProfileScreen() {
   }
 
   async function handleSignOut() {
-    Alert.alert(t("signOut"), t("signOutConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      { text: t("signOut"), style: "destructive", onPress: signOut },
-    ]);
+    const confirmSignOut =
+      Platform.OS === "web"
+        ? window.confirm(t("signOutConfirm"))
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(t("signOut"), t("signOutConfirm"), [
+              { text: t("cancel"), style: "cancel", onPress: () => resolve(false) },
+              { text: t("signOut"), style: "destructive", onPress: () => resolve(true) },
+            ]);
+          });
+
+    if (!confirmSignOut) return;
+
+    try {
+      await signOut();
+    } finally {
+      router.replace("/");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.setTimeout(() => {
+          window.location.replace("/");
+        }, 0);
+      }
+    }
   }
 
   async function handleDeleteAccount() {
@@ -400,6 +448,43 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("changePassword")}</Text>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <Text style={[styles.photoHint, { color: colors.mutedForeground }]}>{t("passwordResetHint")}</Text>
+
+        <PasswordField
+          label={t("currentPassword")}
+          value={currentPassword}
+          onChangeText={setCurrentPassword}
+          placeholder={t("currentPassword")}
+        />
+        <PasswordField
+          label={t("newPassword")}
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder={t("newPassword")}
+        />
+        <PasswordField
+          label={t("confirmNewPassword")}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder={t("confirmNewPassword")}
+        />
+
+        <TouchableOpacity
+          onPress={handleChangePassword}
+          disabled={changingPassword}
+          style={[styles.changePasswordBtn, { backgroundColor: colors.primary }]}
+        >
+          {changingPassword ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.changePasswordText}>{t("changePassword")}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.primary }]}>{t("account")}</Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <Text style={[styles.memberSince, { color: colors.mutedForeground }]}>
@@ -436,30 +521,40 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 32, alignItems: "center", gap: 6 },
   avatarWrap: { alignItems: "center", gap: 10, marginBottom: 4 },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderWidth: 2.5,
+    borderColor: "rgba(255,255,255,0.5)",
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  avatarTouch: { borderRadius: 40 },
+  avatarTouch: { borderRadius: 46, padding: 2 },
   avatarImage: { width: "100%", height: "100%" },
-  avatarText: { fontSize: 32, fontWeight: "800", color: "#fff" },
+  avatarText: { fontSize: 36, fontWeight: "800", color: "#fff" },
   avatarBadge: {
     position: "absolute",
     right: 0,
     bottom: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.9)",
+    borderColor: "rgba(255,255,255,0.95)",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   rolePill: {
     paddingHorizontal: 12,
@@ -517,6 +612,14 @@ const styles = StyleSheet.create({
   rolePillInline: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, alignSelf: "flex-start", marginTop: 2 },
   rolePillText: { fontSize: 12, fontWeight: "700" },
   memberSince: { fontSize: 13 },
+  changePasswordBtn: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  changePasswordText: { color: "#fff", fontSize: 14, fontWeight: "800" },
   signOutBtn: {
     marginHorizontal: 16,
     marginTop: 20,

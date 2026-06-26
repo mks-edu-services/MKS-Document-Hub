@@ -1,6 +1,6 @@
 # MKS Document Hub — Reusable Handoff
 
-Last updated: 2026-06-11
+Last updated: 2026-06-26
 
 This document captures the current state of the project so it can be resumed in a new chat, a different IDE, or a fresh environment without losing the important context.
 
@@ -59,6 +59,14 @@ MKS Document Hub is a document-management app for MKS Education Service. It is d
 - Search supports service type, status, sorting, school, agent, date range, and other tracking filters
 - Filters renumber visible results sequentially after filtering or sorting
 - The report button exports the current filtered set as `.xlsx`
+
+### 4.4 Template Creation
+
+- `Create Template` now supports three paths:
+  - manual field-by-field template authoring
+  - Excel workbook import on web and mobile to prefill name, description, and field definitions
+- The workbook import is meant to speed up template setup from an existing spreadsheet
+- The edit-template screen also retains workbook actions for blank template export, records export, and workbook import/update
 
 ### 4.4 Registry Records
 
@@ -218,6 +226,8 @@ pnpm run deploy:web
 - Dashboard cards and quick-add areas were compacted to free up space
 - Recent document titles wrap instead of truncating important Burmese text
 - Documents page scroll/layout was adjusted so the list gets more room
+- Profile and dashboard avatars were polished for a larger, cleaner mobile presentation
+- Excel workbook import support was added to `Create Template`
 - Advanced Search filter chips now wrap on wider screens and scroll on smaller screens
 - Report export now generates `.xlsx`
 - Registry views now show the full Excel-style column set, including blank cells
@@ -424,6 +434,101 @@ This follow-up update focused on the case where a record already has a Google Dr
 ### Validation
 
 - `pnpm --filter @workspace/mks-app typecheck`
+
+## 25) June 2026 Update — Drive Publicization and Preview Recovery
+
+This follow-up resolved the preview failure by making the saved Google Drive files readable by the app/browser and then rechecking a live registry detail page.
+
+### What changed
+
+- `scripts/publicize-drive-files.cjs` now supports configurable concurrency and retries so the Drive permission pass can complete within the available runtime.
+- The permission pass was rerun against Firestore-backed document records and successfully made `1257` Drive files public to `anyone`.
+- The registry detail page was rechecked in the browser after the permission pass, and the preview image now renders again for an affected certificate record.
+
+### Verification
+
+- `node .\scripts\publicize-drive-files.cjs`
+- Browser verification on `/document/registry-2025-1zsErkSPx_H-H_MC3ULIHzs3_rsr5-M4z`
+
+### Notes
+
+- `25` Drive file IDs still failed with `404 File not found`; those appear to be stale references in Firestore and were skipped safely.
+- The latest web deploy after the preview-source ordering fix is `1782153251624000`.
+
+## 23) June 2026 Update — Drive Preview Embed Fallback
+
+This update removes the embedded Google Drive preview iframe from the registry preview card when the app only has a raw `drive.google.com` preview URL, which was showing the `You need access` page in the card after the recent workbook import.
+
+### What changed
+
+- `RegistryCertificatePreview` now only uses an iframe when the preview URL is a backend or same-origin preview source.
+- When the preview URL points directly at Google Drive, the card falls back to the image/pressable preview path instead of embedding the access page.
+- Clicking the preview area still opens the available preview source or file link, and the download button remains available.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+
+## 24) June 2026 Update — Registry Preview Image Source Order
+
+This update removes raw Google Drive preview pages from the registry preview image source chain so the card favors an actual thumbnail/full image URL before any preview-page URL.
+
+### What changed
+
+- The document detail page now builds the registry preview image source from the Drive file URL / file ID first.
+- Raw `drive.google.com/.../preview` URLs are no longer treated as the first-choice image source.
+- The preview card still keeps a preview-page URL for open/download actions, but the visible card now prefers an actual image URL.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+## 22) June 2026 Update — Combined Certificate Workbook Import
+
+This update imported the two Google-Link Excel workbooks from `D:\MKS\Photo Edititor\G12 Photo\Data\` into the live certificate registry so the `အောင်လက်မှတ်` template records now reflect the latest links and metadata updates.
+
+### What changed
+
+- `scripts/import-registry.cjs` now supports multiple workbook inputs through `REGISTRY_WORKBOOK_PATHS` or repeated `--workbook` arguments.
+- The importer now skips rows without a Google Drive link, so only linked records are written.
+- Existing Firestore documents are matched and updated by Drive file ID and registry keys instead of blindly creating duplicates.
+- The importer now refreshes the stored template metadata so the source workbook list reflects both imported files.
+
+### Import result
+
+- `2025_အောင်လက်မှတ်ထုတ်ယူစာရင်း_.Google_Link.xlsx`: `1076` eligible rows
+- `အောင်လက်မှတ်ထုတ်ယူစာရင်း_Google_Link_Update_Part1.xlsx`: `235` eligible rows
+- Combined eligible records: `1311`
+- Matched existing Firestore documents: `1311`
+- New documents created in this run: `0`
+
+### Verification
+
+- `node scripts/import-registry.cjs --dry-run` with `REGISTRY_WORKBOOK_PATHS` set to the two workbook paths
+- `node scripts/import-registry.cjs` with the same environment, which committed `14` Firestore batches successfully
+
+## 22) June 2026 Update — Service Types and Record Flow Alignment
+
+This update makes service types configurable in-app and links the new-record flow to the selected template structure.
+
+### What changed
+
+- Added a Firestore-backed `serviceTypes` collection with built-in defaults for the original five service types.
+- Added service type labels for Burmese and English, plus active/hidden control in the admin panel.
+- Added admin CRUD support for service types: create, edit, hide/show, and delete custom types.
+- Updated `/document/new` so the selected service type drives the matching template list and its custom fields.
+- Updated template create/edit screens to use the live service type list instead of hardcoded chips.
+- Updated document list, search filters, dashboard cards, and document cards to render localized service type labels from the saved service type definitions.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful web hosting release for this update is `1782114758373000`.
 - `pnpm --filter @workspace/api-server typecheck`
 
 ### Expected result
@@ -468,6 +573,22 @@ This update removes the dependency on Replit connectors for the backend path whe
 ## 17) June 2026 Update — Detail Screen Crash Fix & Preview Verification
 
 This follow-up fixed the React crash that was showing as `Something went wrong` when opening a document detail page.
+
+## 18) June 2026 Update — Drive Preview Access Backfill
+
+This follow-up addressed the `You need access` preview problem on the document detail page by making the stored Drive files publicly readable.
+
+### What changed
+
+- Ran `scripts/publicize-drive-files.cjs` against Firestore-backed document records.
+- Publicized 233 unique Drive file IDs as `reader` for `anyone`, covering both primary Drive links and scan links.
+- Redeployed the web app so the current hosted UI reflects the latest preview and document detail changes.
+
+### Result
+
+- Drive preview embeds no longer depend on a signed-in Google account for the existing records in the database.
+- Users can open the preview page in the browser without hitting the `You need access` permission screen for the backfilled files.
+- The latest hosted release is available at `https://mksedudoc.web.app`.
 
 ### What changed
 
@@ -527,3 +648,199 @@ This follow-up improves the document preview when the backend API host is not av
 
 - A fresh web deploy could not be completed in this environment because the outbound Google/Firebase authentication request was blocked by the current network sandbox.
 - Once the backend/API host is reachable again, the preferred production path is still to set `EXPO_PUBLIC_API_BASE_URL` to that backend so private Drive files can be proxied reliably.
+
+## 20) June 2026 Update — Google-Link Registry Import
+
+This update imported the workbook `D:\MKS\Photo Edititor\G12 Photo\Data\အောင်လက်မှတ်ထုတ်ယူစာရင်း_Google_Link_Update_Part1.xlsx` into Firestore so the registry records now carry the saved Google Drive links.
+
+### What changed
+
+- `scripts/import-registry.cjs` now reads the workbook’s `Google Link` and `Local Link` columns.
+- Each imported registry record now stores the Google Drive URL in `driveFileUrl` and `scanFileUrl`.
+- Each imported registry record now stores a browser preview URL in `scanPreviewUrl` using the Drive `/preview` page.
+- The workbook’s local file name and local folder path are also preserved in the imported record for reference.
+
+### Import result
+
+- Parsed rows: `235`
+- Firestore batches committed: `3`
+- Sample record `registry-2025-0001` now has `driveFileUrl`, `scanFileUrl`, and `scanPreviewUrl` populated from the workbook link.
+
+## 21) June 2026 Update — Template Library and Workbook Flow
+
+This update adds a dedicated template library route and template-scoped workbook export/import helpers so template records can be managed without mixing template setup with record entry.
+
+### What changed
+
+- Added `/template` as a template library page that lists all templates, including hidden ones.
+- The template list now supports create, edit, hide/show, delete, and “use template” actions.
+- Added workbook tools to `/template/[id]` so a template can export a blank workbook, export its records, and import a filled workbook back in.
+- The workbook export now includes the template’s custom fields in addition to the base record columns.
+- The top chrome menu now links directly to the template library for quicker access.
+
+### Validation
+
+- `pnpm --filter @workspace/mks-app typecheck`
+
+## 22) June 2026 Update — Generic Workbook Replace/Append Flow
+
+This follow-up makes the workbook flow reusable for any template, so future templates automatically export/import/update using their own column headers without needing another manual script change.
+
+### What changed
+
+- Added a template-agnostic workbook matcher in `artifacts/mks-app/lib/templateWorkbook.ts`.
+- Workbook export now preserves every template field column in the same order the template defines.
+- Workbook import now supports two explicit modes on `/template/[id]`:
+  - `Replace / Update` updates existing records when `app_document_id` or the workbook signature matches.
+  - `Append New` creates new records from every non-empty row.
+- The workbook payload builder now derives document fields from the active template definition instead of hardcoding one certificate layout.
+- Empty workbook rows are skipped, and ambiguous signature collisions are reported as skipped rows instead of silently overwriting data.
+
+### Last successful process to remember
+
+1. Open the template in `/template/[id]`.
+2. Export either a blank workbook or the existing records workbook.
+3. Fill or update the sheet using the exact template column headers.
+4. Import the file back using `Replace / Update` when you want to sync existing rows.
+5. Switch to `Append New` only when you want every workbook row to become a new record.
+
+### Result
+
+- The app can now handle template workbook export/import/update directly in the UI without needing ad hoc manual mapping for each new template.
+- Any future template added through the template editor will reuse the same workbook pipeline automatically because the sheet columns are derived from the template’s `fields` array.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful live deploy after this workbook update is `1782157015414000`.
+
+## 23) June 2026 Update — Service-Type Template Sort Mode
+
+This follow-up makes the `/documents` sort area switch to the active template’s column order whenever a specific service type is selected.
+
+### What changed
+
+- Added a dedicated `template-order` sort mode in the document list sort pipeline.
+- When `ဝန်ဆောင်မှုအမျိုးအစား` is set to `အားလုံး`, the page keeps the existing general sort modes.
+- When a specific service type is selected, the sort UI now shows a template-order mode instead of the generic list of sort chips.
+- The list comparator now keeps using template field order as the primary ordering for service-specific views.
+
+### Result
+
+- Users can keep the normal general sorts for `အားလုံး`, while service-specific views follow the matching template’s column structure automatically.
+
+### Verification
+
+- `pnpm --filter @workspace/mks-app typecheck`
+- `pnpm run deploy:web`
+
+### Deployment note
+
+- The latest successful live deploy after this sort update is `1782193015208000`.
+
+## 24) June 2026 Update — Template Column Chips Restored in Sort By
+
+This follow-up fixes the `/documents` sort panel so service-specific views now show the actual template column headers as clickable chips instead of only a single “template order” note.
+
+### What changed
+
+- The sort UI now has two explicit branches:
+  - `အားလုံး` keeps the normal generic sort chips.
+  - any specific service type shows that template’s column headers as individual sort chips.
+- The template-specific sort comparator now uses the selected template field key directly.
+- The active template field key is reset cleanly when filters are cleared or when no matching template is available.
+- The sort panel now stays type-safe and no longer mixes generic sort labels with template field labels in one union list.
+
+### Expected result
+
+- When `ဝန်ဆောင်မှုအမျိုးအစား` is `အားလုံး`, the existing general sort options remain unchanged.
+- When a service type like `G12 အောင်လက်မှတ်` is selected, the sort area should show the actual template column headings for that service.
+- The selected chip should drive the ordering of the records in the list.
+
+### Validation
+
+- `C:\PythonProject\MKS-Document-Hub\artifacts\mks-app\node_modules\.bin\tsc.cmd -p tsconfig.json --noEmit`
+
+## 25) June 2026 Update — Apps Script Drive Backend + Folder Mapping
+
+This update makes the Drive helper layer usable without a Google Cloud billing-backed API host by defaulting the app’s Drive bridge to a deployed Google Apps Script web app.
+
+### What changed
+
+- Added `resolveDriveApiBaseUrl()` in `artifacts/mks-app/lib/apiBase.ts`.
+- Drive helper requests now prefer `EXPO_PUBLIC_DRIVE_API_BASE_URL`, then `EXPO_PUBLIC_API_BASE_URL`, and finally the deployed Apps Script URL:
+  - `https://script.google.com/macros/s/AKfycbwSfyGSFqNTgoK38cpZtrrxEz18qH8IEz5GGiaaRyrcSpbCA1boZ_Iy4ZNgJo5L8VP_/exec`
+- Updated `artifacts/mks-app/lib/driveUpload.ts` so Drive upload/health/search errors point to the Drive-specific env var when the helper is misconfigured.
+- Added `EXPO_PUBLIC_DRIVE_API_BASE_URL` to `.env.example`.
+- Updated `scripts/deploy-web.cjs` so web deploys carry the Drive helper URL automatically.
+- Updated `DEPLOYMENT.md` and `replit.md` with the Google Apps Script Drive helper flow.
+
+### Apps Script backend
+
+- Apps Script project name: `MKS Document Hub API`
+- Web app URL:
+  - `https://script.google.com/macros/s/AKfycbwSfyGSFqNTgoK38cpZtrrxEz18qH8IEz5GGiaaRyrcSpbCA1boZ_Iy4ZNgJo5L8VP_/exec`
+- Health endpoint test response confirmed:
+  - `{"ok":true,"service":"MKS Document Hub API", ...}`
+- Sheet lookup confirmed against:
+  - Google Sheet ID `1i3YzFeytCR83T8usyFaYuFqQGO-6QfEU5gx27z5DXAQ`
+  - Tab name `Drive_Folder_Mapping`
+
+### Drive folder mapping workflow
+
+- Created an admin config folder in Google Drive:
+  - `MKS Document Hub Admin`
+    - `Configuration`
+    - `Exports`
+- A spreadsheet template was generated and then converted into a Google Sheet.
+- Final mapping use case is now simplified to a single row for the root folder:
+  - `Mapping ID`: `MAP-001`
+  - `Service Type`: `G12 အောင်လက်မှတ်`
+  - `Template Name`: `G12 အောင်လက်မှတ်စာရင်း`
+  - `Folder Name`: `အောင်လက်မှတ် စုစုပေါင်း`
+  - `Folder ID`: `1SrGyRm3p0htQVT-Sz5pikjJVOorBR-1k`
+  - `Parent Folder ID`: blank
+  - `Drive Path`: `/အောင်လက်မှတ် စုစုပေါင်း`
+  - `Status`: `Active`
+
+### Web deploy result
+
+- Latest successful web deploy after this update:
+  - Firebase Hosting release `sites/mksedudoc/releases/1782416454871000`
+  - Live site `https://mksedudoc.web.app`
+
+### Verification completed
+
+- `corepack pnpm@11.9.0 --filter @workspace/mks-app typecheck`
+- `corepack pnpm@11.9.0 deploy:web`
+
+### What remains for the next chat
+
+1. Keep adding rows to the mapping sheet whenever a new Drive folder path needs to be linked.
+2. If needed, expand the Apps Script endpoints for richer preview metadata or import/export helpers.
+3. Keep the mapping sheet as the single source of truth for Drive folder routing.
+
+## 26) June 2026 Update — Registry Preview Same-Origin Guard
+
+This follow-up fixes the regression where the preview pane accidentally embedded the app shell/dashboard when the preview URL resolved to a same-origin `/api/...` path instead of a real preview host.
+
+### What changed
+
+- The preview proxy helper now only builds a backend preview URL when `EXPO_PUBLIC_API_BASE_URL` is an explicit absolute backend host.
+- The registry preview card now rejects relative and same-origin preview URLs before attempting to embed them.
+- The document detail page now sanitizes stored preview and file URLs so older bad `/api/...` values cannot override the real image fallback path.
+
+### Result
+
+- The preview pane now falls back to the actual image/thumbnail path instead of rendering the dashboard inside the preview box.
+
+### Reminder for future chats
+
+- Use the Apps Script URL above for Drive helper calls unless it is changed later.
+- Keep `EXPO_PUBLIC_API_BASE_URL` for general backend API work.
+- Keep `EXPO_PUBLIC_DRIVE_API_BASE_URL` for Drive helper / preview / mapping work.
+- The web app preview/upload/search flow is already routed through the Drive helper default; only future mapping rows should be needed for new folders.

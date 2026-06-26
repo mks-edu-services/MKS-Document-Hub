@@ -3,13 +3,14 @@ import { StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-na
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { getRegistryFieldLabel } from "@/lib/registry";
-import type { LanguageCode } from "@/types";
+import type { FieldType, LanguageCode } from "@/types";
 
 type RegistryField = {
   id: string;
-  labelMy: string;
-  labelEn: string;
-  type: "text" | "date" | "number" | "textarea";
+  label?: string;
+  labelMy?: string;
+  labelEn?: string;
+  type: FieldType;
 };
 
 type Props = {
@@ -35,7 +36,11 @@ export function RegistryFieldsTable({ title, fields, values, onChange, editable 
       <View style={styles.table}>
         {fields.map((field) => {
           const value = values[field.id] ?? "";
-          const label = getRegistryFieldLabel(field.id, activeLanguage, { label: field.labelEn, labelMy: field.labelMy, labelEn: field.labelEn });
+          const label = getRegistryFieldLabel(field.id, activeLanguage, {
+            label: field.label ?? "",
+            labelMy: field.labelMy,
+            labelEn: field.labelEn,
+          });
           return (
             <View
               key={field.id}

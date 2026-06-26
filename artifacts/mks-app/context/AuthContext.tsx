@@ -12,6 +12,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateProfile: (data: { displayName?: string; username?: string; phoneNumber?: string; agentName?: string; photoURL?: string }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteCurrentAccount: () => Promise<void>;
   isFirebaseReady: boolean;
 }
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
   refreshUser: async () => {},
   updateProfile: async () => {},
+  changePassword: async () => {},
   deleteCurrentAccount: async () => {},
   isFirebaseReady: false,
 });
@@ -120,6 +122,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser((u) => u ? { ...u, ...data } : u);
   }, [user]);
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const auth = await getFirebaseAuth();
+    const currentUser = auth?.currentUser;
+    if (!auth || !currentUser?.email) {
+      throw new Error("Firebase not configured");
+    }
+
+    const {
+      EmailAuthProvider,
+      reauthenticateWithCredential,
+      updatePassword,
+    } = await import("firebase/auth");
+    const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+    await reauthenticateWithCredential(currentUser, credential);
+    await updatePassword(currentUser, newPassword);
+  }, []);
+
   const deleteCurrentAccount = useCallback(async () => {
     const auth = await getFirebaseAuth();
     if (!auth?.currentUser || !user) return;
@@ -137,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       refreshUser,
       updateProfile,
+      changePassword,
       deleteCurrentAccount,
       isFirebaseReady: isFirebaseConfigured,
     }}>

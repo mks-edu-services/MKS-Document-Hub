@@ -14,6 +14,10 @@ const serviceAccountPath =
   path.join(workspaceRoot, "mks-certificate-app-cbf64-firebase-adminsdk-fbsvc-09ad142660.json");
 const apiBaseArg = process.argv.find((value) => value.startsWith("--api-base="));
 const apiBaseUrl = apiBaseArg ? apiBaseArg.split("=", 2)[1] : process.env.EXPO_PUBLIC_API_BASE_URL;
+const driveApiBaseArg = process.argv.find((value) => value.startsWith("--drive-api-base="));
+const driveApiBaseUrl = driveApiBaseArg
+  ? driveApiBaseArg.split("=", 2)[1]
+  : process.env.EXPO_PUBLIC_DRIVE_API_BASE_URL || "https://script.google.com/macros/s/AKfycbwSfyGSFqNTgoK38cpZtrrxEz18qH8IEz5GGiaaRyrcSpbCA1boZ_Iy4ZNgJo5L8VP_/exec";
 
 function spawnNodeCommand(args, cwd, env = {}) {
   return new Promise((resolve, reject) => {
@@ -100,6 +104,7 @@ async function runExpoExport() {
     {
       EXPO_PUBLIC_DOMAIN: "mksedudoc.web.app",
       ...(apiBaseUrl ? { EXPO_PUBLIC_API_BASE_URL: apiBaseUrl } : {}),
+      ...(driveApiBaseUrl ? { EXPO_PUBLIC_DRIVE_API_BASE_URL: driveApiBaseUrl } : {}),
     },
   );
 }

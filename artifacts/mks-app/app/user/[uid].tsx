@@ -1,8 +1,10 @@
 import { Feather } from "@/components/AppIcons";
 import { RoleRouteGate } from "@/components/RoleRouteGate";
+import { PasswordField } from "@/components/PasswordField";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
+import { generateTemporaryPassword, updateAdminUserPassword } from "@/lib/adminUsers";
 import { createUser, getUser, updateUserProfile, updateUserRole } from "@/lib/firestore";
 import { createFirebaseAuthUser } from "@/lib/firebaseAuth";
 import { AppUser, AccountAccessStatus, UserRole } from "@/types";
@@ -45,6 +47,8 @@ export default function UserEditorScreen() {
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [role, setRole] = useState<UserRole>("viewer");
   const [accessStatus, setAccessStatus] = useState<AccountAccessStatus>("allowed");
   const [photoURL, setPhotoURL] = useState("");
@@ -52,6 +56,8 @@ export default function UserEditorScreen() {
   useEffect(() => {
     let mounted = true;
     if (isCreateMode) {
+      setPassword("");
+      setTemporaryPassword("");
       setLoading(false);
       return () => {
         mounted = false;
@@ -70,6 +76,8 @@ export default function UserEditorScreen() {
           setRole(existing?.role ?? "viewer");
           setAccessStatus(existing?.accessStatus ?? "allowed");
           setPhotoURL(existing?.photoURL ?? "");
+          setPassword("");
+          setTemporaryPassword("");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -93,6 +101,31 @@ export default function UserEditorScreen() {
   }, [record]);
 
   const headerTitle = useMemo(() => (isCreateMode ? t("newUser") : t("editUser")), [isCreateMode, t]);
+  const passwordLabel = isCreateMode ? t("password") : t("temporaryPassword");
+  const passwordValue = isCreateMode ? password : temporaryPassword;
+  const setPasswordValue = isCreateMode ? setPassword : setTemporaryPassword;
+
+  function handleGeneratePassword() {
+    setPasswordValue(generateTemporaryPassword());
+  }
+
+  async function handleSavePassword() {
+    if (isCreateMode) return;
+    if (!temporaryPassword.trim()) {
+      Alert.alert(t("required"), t("temporaryPassword") + " " + t("fieldRequired"));
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      await updateAdminUserPassword(uid, temporaryPassword.trim());
+      Alert.alert(t("passwordReset"), t("passwordUpdated"));
+    } catch (error: any) {
+      Alert.alert(t("error"), error?.message ?? t("failedToUpdatePassword"));
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
 
   async function handlePickPhoto() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -221,7 +254,37 @@ export default function UserEditorScreen() {
           <Field label={t("username")} value={username} onChangeText={setUsername} colors={colors} />
           <Field label={t("email")} value={email} onChangeText={setEmail} colors={colors} editable={isCreateMode} />
           <Field label={t("phoneNumber")} value={phoneNumber} onChangeText={setPhoneNumber} colors={colors} />
-          {isCreateMode ? <Field label={t("password")} value={password} onChangeText={setPassword} colors={colors} secureTextEntry /> : null}
+          <PasswordField
+            label={passwordLabel}
+            value={passwordValue}
+            onChangeText={setPasswordValue}
+            placeholder={isCreateMode ? t("enterPassword") : t("temporaryPassword")}
+            helperText={isCreateMode ? t("passwordHelp") : t("passwordResetHint")}
+            actions={[
+              {
+                label: t("generatePassword"),
+                onPress: handleGeneratePassword,
+                variant: "secondary",
+              },
+            ]}
+          />
+          {!isCreateMode ? (
+            <View style={[styles.passwordSection, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+              <Text style={[styles.passwordSectionTitle, { color: colors.primary }]}>{t("passwordReset")}</Text>
+              <Text style={[styles.passwordSectionHint, { color: colors.mutedForeground }]}>{t("passwordResetHint")}</Text>
+              <TouchableOpacity
+                onPress={handleSavePassword}
+                style={[styles.passwordSaveBtn, { backgroundColor: colors.primary }]}
+                disabled={passwordSaving || !temporaryPassword.trim()}
+              >
+                {passwordSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.passwordSaveText}>{t("savePassword")}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>{t("role")}</Text>
           <View style={styles.pillsRow}>
@@ -344,4 +407,9 @@ const styles = StyleSheet.create({
   deleteText: { fontSize: 14, fontWeight: "700" },
   primaryBtn: { flex: 1.3, borderRadius: 12, paddingVertical: 13, alignItems: "center" },
   primaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  passwordSection: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 },
+  passwordSectionTitle: { fontSize: 15, fontWeight: "800" },
+  passwordSectionHint: { fontSize: 12, lineHeight: 18 },
+  passwordSaveBtn: { alignSelf: "flex-start", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
+  passwordSaveText: { color: "#fff", fontSize: 14, fontWeight: "800" },
 });

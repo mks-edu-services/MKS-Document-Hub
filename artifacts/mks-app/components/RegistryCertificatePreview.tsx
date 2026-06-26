@@ -13,13 +13,28 @@ import {
 import { useLanguage } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { getRegistryFieldLabel } from "@/lib/registry";
-import type { LanguageCode } from "@/types";
+import type { FieldType, LanguageCode } from "@/types";
+
+function getSafeRemoteUrl(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("/")) return "";
+  try {
+    const parsed = new URL(trimmed);
+    if (typeof window !== "undefined" && parsed.origin === window.location.origin) {
+      return "";
+    }
+    return trimmed;
+  } catch {
+    return "";
+  }
+}
 
 type RegistryField = {
   id: string;
-  labelMy: string;
-  labelEn: string;
-  type: "text" | "date" | "number" | "textarea";
+  label?: string;
+  labelMy?: string;
+  labelEn?: string;
+  type: FieldType;
 };
 
 type Props = {
@@ -53,6 +68,10 @@ export function RegistryCertificatePreview({
   const [imageSource, setImageSource] = useState(
     thumbnailUrl || fullImageUrl || "",
   );
+  const canEmbedPreview =
+    Platform.OS === "web" &&
+    Boolean(getSafeRemoteUrl(previewPageUrl)) &&
+    !getSafeRemoteUrl(previewPageUrl)?.includes("drive.google.com");
   const previewUnavailableLabel =
     activeLanguage === "en" ? "Preview unavailable" : "အစမ်းကြည့်မရသေးပါ";
   const previewActionLabel =
@@ -64,7 +83,7 @@ export function RegistryCertificatePreview({
         ? "ဖိုင်ကိုဖွင့်ကြည့်ရန်နှိပ်ပါ"
         : "အစမ်းကြည့်မရသေးပါ";
   const previewSource =
-    previewPageUrl || fullImageUrl || thumbnailUrl || "";
+    getSafeRemoteUrl(previewPageUrl) || fullImageUrl || thumbnailUrl || "";
 
   useEffect(() => {
     setImageSource(thumbnailUrl || fullImageUrl || "");
@@ -82,7 +101,7 @@ export function RegistryCertificatePreview({
         <View style={styles.rowsColumn}>
           {fields.map((field) => {
             const label = getRegistryFieldLabel(field.id, activeLanguage, {
-              label: field.labelEn,
+              label: field.label ?? "",
               labelMy: field.labelMy,
               labelEn: field.labelEn,
             });
@@ -116,7 +135,7 @@ export function RegistryCertificatePreview({
         <View
           style={[styles.thumbColumn, compact && styles.thumbColumnCompact]}
         >
-          {Platform.OS === "web" && previewSource ? (
+          {canEmbedPreview && previewSource ? (
             <View
               style={[
                 styles.thumbFrame,
@@ -139,8 +158,16 @@ export function RegistryCertificatePreview({
             </View>
           ) : (
             <Pressable
-              onPress={onPressThumbnail}
-              disabled={!onPressThumbnail && !fullImageUrl}
+              onPress={() => {
+                if (onPressThumbnail) {
+                  onPressThumbnail();
+                  return;
+                }
+                if (previewSource) {
+                  Linking.openURL(previewSource);
+                }
+              }}
+              disabled={!onPressThumbnail && !previewSource}
               style={[
                 styles.thumbFrame,
                 { borderColor: colors.border, backgroundColor: colors.muted },

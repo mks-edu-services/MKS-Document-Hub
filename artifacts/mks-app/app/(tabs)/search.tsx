@@ -17,13 +17,15 @@ import { DocumentCard } from "@/components/DocumentCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { useServiceTypes } from "@/context/ServiceTypesContext";
 import { useColors } from "@/hooks/useColors";
-import { sortDocuments, type DocumentSortMode } from "@/lib/documentSorting";
-import { subscribeToDocuments } from "@/lib/firestore";
-import { Document, FilterState } from "@/types";
+import { type DocumentSortMode } from "@/lib/documentSorting";
+import { sortDocumentsForList } from "@/lib/documentListOrdering";
+import { getServiceTypeLabelFromValue, resolveServiceTypeId, sortServiceTypes } from "@/lib/serviceTypes";
+import { subscribeToDocuments, subscribeToTemplates } from "@/lib/firestore";
+import { Document, FilterState, Template } from "@/types";
 
 const ACADEMIC_YEARS = ["All", "2024-2025", "2023-2024", "2022-2023", "2021-2022", "2020-2021"];
-const SERVICE_TYPES = ["All", "Degree Certificate", "Notary", "Transcript", "Translation", "Other"];
 const STATUS_OPTIONS = ["All", "Active", "Draft", "Archived"];
 const SORT_OPTIONS: Array<{ labelKey: "newestFirst" | "oldestFirst" | "nameAZ" | "nameZA" | "yearNewest" | "yearOldest" | "seatAscending"; value: DocumentSortMode }> = [
   { labelKey: "newestFirst", value: "updated-desc" },
@@ -51,7 +53,19 @@ function getDocumentDate(document: Document) {
   return document.date || document.updatedAt || document.createdAt;
 }
 
-function FilterSection({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (v: string) => void }) {
+function FilterSection({
+  label,
+  options,
+  value,
+  onChange,
+  getOptionLabel,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  getOptionLabel?: (value: string) => string;
+}) {
   const colors = useColors();
   return (
     <View style={fStyles.section}>
@@ -64,7 +78,7 @@ function FilterSection({ label, options, value, onChange }: { label: string; opt
             style={[fStyles.chip, { backgroundColor: value === opt ? colors.primary : colors.muted, borderColor: value === opt ? colors.primary : colors.border }]}
             activeOpacity={0.8}
           >
-            <Text style={[fStyles.chipText, { color: value === opt ? "#fff" : colors.foreground }]}>{opt}</Text>
+            <Text style={[fStyles.chipText, { color: value === opt ? "#fff" : colors.foreground }]}>{getOptionLabel ? getOptionLabel(opt) : opt}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -84,13 +98,15 @@ export default function SearchScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { isFirebaseReady } = useAuth();
-  const { t, translateServiceType, translateStatus } = useLanguage();
+  const { t, translateStatus, language } = useLanguage();
+  const { serviceTypes, activeServiceTypes } = useServiceTypes();
   const { width } = useWindowDimensions();
   const isCompact = width < 640;
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
 
   const [allDocs, setAllDocs] = useState<Document[]>([]);
   const [results, setResults] = useState<Document[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortMode, setSortMode] = useState<DocumentSortMode>("updated-desc");
@@ -105,6 +121,13 @@ export default function SearchScreen() {
     dateTo: "",
     searchQuery: "",
   });
+
+  const serviceTypeOptions = useMemo(
+    () => ["All", ...sortServiceTypes(activeServiceTypes.length > 0 ? activeServiceTypes : serviceTypes).map((serviceType) => serviceType.id)],
+    [activeServiceTypes, serviceTypes],
+  );
+  const getServiceTypeLabel = (value: string) =>
+    value === "All" ? t("all") : getServiceTypeLabelFromValue(language, value, serviceTypes);
 
   useEffect(() => {
     if (!isFirebaseReady) {
@@ -122,6 +145,19 @@ export default function SearchScreen() {
     return unsub;
   }, [isFirebaseReady]);
 
+  useEffect(() => {
+    if (!isFirebaseReady) {
+      setTemplates([]);
+      return;
+    }
+    const unsub = subscribeToTemplates(
+      (items) => setTemplates(items),
+      false,
+      () => setTemplates([]),
+    );
+    return unsub;
+  }, [isFirebaseReady]);
+
   const filtered = useMemo(() => {
     const q = filters.searchQuery.toLowerCase();
     return allDocs.filter((d) => {
@@ -132,12 +168,13 @@ export default function SearchScreen() {
         d.school.toLowerCase().includes(q) ||
         d.agent.toLowerCase().includes(q) ||
         d.serviceType.toLowerCase().includes(q) ||
+        getServiceTypeLabelFromValue(language, d.serviceType, serviceTypes).toLowerCase().includes(q) ||
         d.templateName.toLowerCase().includes(q) ||
         d.scanSearchKey?.toLowerCase().includes(q) ||
         d.scanFileName?.toLowerCase().includes(q) ||
         (d.notes ?? "").toLowerCase().includes(q) ||
         Object.values(d.fields ?? {}).some((value) => value.toLowerCase().includes(q));
-      const matchService = filters.serviceType === "All" || d.serviceType === filters.serviceType;
+      const matchService = filters.serviceType === "All" || resolveServiceTypeId(d.serviceType, serviceTypes) === filters.serviceType;
       const matchSchool = !filters.school || d.school.toLowerCase().includes(filters.school.toLowerCase());
       const matchAgent = !filters.agent || d.agent.toLowerCase().includes(filters.agent.toLowerCase());
       const matchYear = filters.academicYear === "All" || d.academicYear === filters.academicYear;
@@ -154,8 +191,8 @@ export default function SearchScreen() {
   }, [allDocs, filters]);
 
   useEffect(() => {
-    setResults(sortDocuments(filtered, sortMode));
-  }, [filtered, sortMode]);
+    setResults(sortDocumentsForList(filtered, { query: filters.searchQuery, serviceType: filters.serviceType, sortMode, templates, serviceTypes }));
+  }, [filtered, filters.searchQuery, filters.serviceType, sortMode, templates, serviceTypes]);
 
   const activeFilterCount = [
     filters.serviceType !== "All",
@@ -227,9 +264,10 @@ export default function SearchScreen() {
           </View>
           <FilterSection
             label={t("serviceTypeLabel")}
-            options={SERVICE_TYPES}
+            options={serviceTypeOptions}
             value={filters.serviceType}
             onChange={(v) => setFilters((f) => ({ ...f, serviceType: v }))}
+            getOptionLabel={getServiceTypeLabel}
           />
           <FilterSection
             label={t("academicYearLabel")}

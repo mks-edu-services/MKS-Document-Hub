@@ -29,8 +29,8 @@ This workspace powers the MKS Education Service document manager: Firebase Auth 
 ## Deployment notes
 
 - Frontend hosting target: Firebase Hosting (`mksedudoc`)
-- Drive upload API: must be reachable at `EXPO_PUBLIC_API_BASE_URL`
-- If no explicit API base URL is set, the app falls back to same-origin `/api`
+- Drive helper API: defaults to the deployed Apps Script URL, and can be overridden with `EXPO_PUBLIC_DRIVE_API_BASE_URL`
+- General app/backend API: still uses `EXPO_PUBLIC_API_BASE_URL`, falling back to same-origin `/api` when unset
 - `pnpm run deploy:web` expects a Firebase auth method; `GOOGLE_APPLICATION_CREDENTIALS_JSON` is still the recommended non-interactive option, and the app now carries safe public Firebase web defaults so deploys do not depend on manual Expo env setup
 
 ## Project map
