@@ -1,6 +1,7 @@
-import { resolveDriveApiBaseUrl } from "./apiBase";
+import { resolveApiBaseUrl, resolveDriveApiBaseUrl } from "./apiBase";
 
 const API_BASE = resolveDriveApiBaseUrl();
+const PREVIEW_API_BASE = resolveApiBaseUrl();
 
 export interface DriveUploadResult {
   fileId: string;
@@ -75,10 +76,10 @@ export function normalizeDriveFileUrl(value?: string): string {
 }
 
 export function buildDrivePreviewUrl(value?: string): string {
-  if (!isDriveApiConfigured()) return "";
+  if (!isPreviewApiConfigured()) return "";
   const driveFileId = extractDriveFileId(value);
   if (!driveFileId) return "";
-  return `${API_BASE}/drive/files/${driveFileId}/preview`;
+  return `${PREVIEW_API_BASE}/drive/files/${driveFileId}/preview`;
 }
 
 export function buildDrivePreviewPageUrl(value?: string): string {
@@ -123,6 +124,17 @@ function isDriveApiConfigured() {
   try {
     if (process.env.EXPO_PUBLIC_DRIVE_API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL) return true;
     return isLocalhost(window.location.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isPreviewApiConfigured() {
+  if (typeof window === "undefined") return true;
+  try {
+    const explicitApiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
+    if (explicitApiBase) return true;
+    return isLocalhost(window.location.hostname) || window.location.origin !== "null";
   } catch {
     return false;
   }
