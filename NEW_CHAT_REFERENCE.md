@@ -11,6 +11,7 @@ This file is a short handoff for the next chat.
 - The overall project handoff has also been updated in `PROJECT_HANDOFF.md`.
 - The mobile dashboard/profile avatar polish has been completed for cleaner small-screen presentation.
 - The `Create Template` screen now supports importing an Excel workbook on web and mobile to prefill template name/description/fields.
+- The document detail preview now rejects same-origin `/api` URLs so the preview pane cannot accidentally render the app shell/dashboard again.
 
 ## Current Drive backend values
 

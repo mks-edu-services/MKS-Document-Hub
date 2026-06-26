@@ -824,6 +824,20 @@ This update makes the Drive helper layer usable without a Google Cloud billing-b
 2. If needed, expand the Apps Script endpoints for richer preview metadata or import/export helpers.
 3. Keep the mapping sheet as the single source of truth for Drive folder routing.
 
+## 26) June 2026 Update — Registry Preview Same-Origin Guard
+
+This follow-up fixes the regression where the preview pane accidentally embedded the app shell/dashboard when the preview URL resolved to a same-origin `/api/...` path instead of a real preview host.
+
+### What changed
+
+- The preview proxy helper now only builds a backend preview URL when `EXPO_PUBLIC_API_BASE_URL` is an explicit absolute backend host.
+- The registry preview card now rejects relative and same-origin preview URLs before attempting to embed them.
+- The document detail page now sanitizes stored preview and file URLs so older bad `/api/...` values cannot override the real image fallback path.
+
+### Result
+
+- The preview pane now falls back to the actual image/thumbnail path instead of rendering the dashboard inside the preview box.
+
 ### Reminder for future chats
 
 - Use the Apps Script URL above for Drive helper calls unless it is changed later.

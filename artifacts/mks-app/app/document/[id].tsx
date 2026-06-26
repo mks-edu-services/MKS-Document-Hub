@@ -116,6 +116,20 @@ function normalizeDocument(document: Document | null): Document | null {
   };
 }
 
+function getSafeRemoteUrl(value?: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.startsWith("/")) return "";
+  try {
+    const parsed = new URL(trimmed);
+    if (typeof window !== "undefined" && parsed.origin === window.location.origin) {
+      return "";
+    }
+    return trimmed;
+  } catch {
+    return "";
+  }
+}
+
 function InfoRow({
   icon,
   label,
@@ -509,35 +523,33 @@ export default function DocumentDetailScreen() {
   const backendScanPreviewUrl = buildDrivePreviewUrl(preferredScanSource);
   const scanPreviewSource =
     backendScanPreviewUrl ||
-    (document.scanPreviewUrl &&
-    !document.scanPreviewUrl.includes("drive.google.com")
-      ? document.scanPreviewUrl
-      : "");
+    getSafeRemoteUrl(document.scanPreviewUrl) ||
+    "";
   const scanThumbUrl =
     buildDriveThumbnailUrl(preferredScanSource) ||
     buildDriveThumbnailUrl(document.scanPreviewUrl || "") ||
     scanPreviewSource ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   const scanFullUrl =
     buildDriveFullImageUrl(preferredScanSource) ||
     buildDriveFullImageUrl(document.scanPreviewUrl || "") ||
     buildDriveThumbnailUrl(preferredScanSource) ||
     scanPreviewSource ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     scanThumbUrl;
   const scanDownloadUrl =
     buildDriveDownloadUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   const scanPreviewPageUrl =
     scanPreviewSource ||
     buildDrivePreviewPageUrl(preferredScanSource) ||
-    document.scanFileUrl ||
-    document.driveFileUrl ||
+    getSafeRemoteUrl(document.scanFileUrl) ||
+    getSafeRemoteUrl(document.driveFileUrl) ||
     "";
   function handleOpenPreview() {
     if (!document) return;

@@ -1,7 +1,17 @@
-import { resolveApiBaseUrl, resolveDriveApiBaseUrl } from "./apiBase";
+import { resolveDriveApiBaseUrl } from "./apiBase";
 
 const API_BASE = resolveDriveApiBaseUrl();
-const PREVIEW_API_BASE = resolveApiBaseUrl();
+const PREVIEW_API_BASE = (() => {
+  const explicitApiBase = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (!explicitApiBase) return "";
+  try {
+    const parsed = new URL(explicitApiBase);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+})();
 
 export interface DriveUploadResult {
   fileId: string;
@@ -76,7 +86,7 @@ export function normalizeDriveFileUrl(value?: string): string {
 }
 
 export function buildDrivePreviewUrl(value?: string): string {
-  if (!isPreviewApiConfigured()) return "";
+  if (!PREVIEW_API_BASE) return "";
   const driveFileId = extractDriveFileId(value);
   if (!driveFileId) return "";
   return `${PREVIEW_API_BASE}/drive/files/${driveFileId}/preview`;
@@ -124,17 +134,6 @@ function isDriveApiConfigured() {
   try {
     if (process.env.EXPO_PUBLIC_DRIVE_API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL) return true;
     return isLocalhost(window.location.hostname);
-  } catch {
-    return false;
-  }
-}
-
-function isPreviewApiConfigured() {
-  if (typeof window === "undefined") return true;
-  try {
-    const explicitApiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
-    if (explicitApiBase) return true;
-    return isLocalhost(window.location.hostname) || window.location.origin !== "null";
   } catch {
     return false;
   }
